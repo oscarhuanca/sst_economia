@@ -1,0 +1,45 @@
+# === LARAVEL (Backend) ===
+backend/.env
+backend/.env.*
+backend/.env.local
+backend/.env.*.local
+backend/vendor/
+backend/node_modules/
+backend/storage/*.key
+backend/storage/framework/
+backend/storage/logs/
+backend/public/storage/
+backend/.phpunit.result.cache
+backend/Homestead.json
+backend/Homestead.yaml
+backend/.vagrant/
+backend/.idea/
+backend/.vscode/
+
+# === VUE 3 (Frontend) ===
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+frontend/*.log
+frontend/.vite/
+frontend/.cache/
+
+# === ARCHIVOS COMUNES ===
+.DS_Store
+Thumbs.db
+*.log
+.env
+.env.*
+*.sqlite
+*.sqlite-journal
+
+# === PLANTILLAS DE ENTORNO (versionables: NO contienen secretos) ===
+# Re-incluye los archivos `.env.*.example` que los patrones anteriores ignoraron.
+# Los archivos reales `.env`, `.env.development` y `.env.production` SÍ se mantienen
+# ignorados: solo se versionan las plantillas seguras.
+!.env.example
+!.env.*.example
+!**/.env.example
+!**/.env.*.example

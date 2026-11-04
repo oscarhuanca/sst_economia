@@ -1,0 +1,52 @@
+﻿"use strict";
+
+// Catálogo de modalidades
+export const MODALIDADES_MOCK = [
+  { id_modalidad: 1, nombre: 'Examen de Grado', activo: true },
+  { id_modalidad: 2, nombre: 'Tesis de Grado', activo: true },
+  { id_modalidad: 3, nombre: 'Trabajo Dirigido', activo: true },
+  { id_modalidad: 4, nombre: 'Excelencia Académica', activo: true },
+];
+
+// Catálogo de docentes
+export const DOCENTES_MOCK = [
+  { id_docente: 1, id_usuario: 1, id_tutor: 1, nombres: 'Julia', nombre: 'Julia', apellidos: 'Paredes Villca', email: 'julia.paredes@upea.edu.bo', materia: null, ci: '1234567' },
+  { id_docente: 2, id_usuario: 2, id_tutor: 2, nombres: 'Roberto', nombre: 'Roberto', apellidos: 'Sánchez Calle', email: 'roberto.sanchez@upea.edu.bo', materia: null, ci: '2345678' },
+  { id_docente: 3, id_usuario: 3, id_tutor: 3, nombres: 'Elena', nombre: 'Elena', apellidos: 'Aguilar Rojas', email: 'elena.aguilar@upea.edu.bo', materia: null, ci: '3456789' },
+];
+
+// Simula POST /tramites/{id}/asignar-tutor
+export function asignarTutorMock(tramite, idTutor) {
+  const t = JSON.parse(JSON.stringify(tramite));
+  const id = Number(idTutor);
+
+  const tutor = DOCENTES_MOCK.find(
+    (d) => d.id_docente === id || d.id_usuario === id || d.id_tutor === id
+  );
+
+  if (!tutor) {
+    throw { message: 'El tutor seleccionado no existe o no es un docente válido.' };
+  }
+
+  const idTutorReal = tutor.id_docente || tutor.id_usuario || tutor.id_tutor;
+
+  t.id_tutor = idTutorReal;
+  t.tutor = {
+    id_docente: idTutorReal,
+    id_usuario: idTutorReal,
+    id_tutor: idTutorReal,
+    nombres: tutor.nombres || tutor.nombre,
+    nombre: tutor.nombre || tutor.nombres,
+    apellidos: tutor.apellidos,
+    email: tutor.email,
+    ci: tutor.ci,
+    materia: tutor.materia,
+  };
+  if (t.hitos) {
+    t.hitos.tutor_asignado = new Date().toISOString().slice(0, 10);
+  } else {
+    t.hitos = { tutor_asignado: new Date().toISOString().slice(0, 10) };
+  }
+  t.updated_at = new Date().toISOString();
+  return t;
+}

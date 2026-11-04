@@ -1,0 +1,128 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --color-primary: #164E87;
+  --color-orange: #F36F16;
+  --color-orange-100: #F36F16;
+  --color-orange-200: #F36F16;
+  --color-orange-300: #F36F16;
+  --color-orange-400: #F36F16;
+  --color-orange-500: #F36F16;
+  --color-orange-600: #F36F16;
+  --color-orange-700: #F36F16;
+  --color-orange-800: #F36F16;
+  --color-orange-900: #F36F16;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-primary text-slate-200 antialiased;
+    font-family: var(--font-sans);
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-slate-800/60 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl;
+  }
+  .input {
+    @apply w-full px-4 py-3 rounded-lg border border-white/10 bg-slate-800/80 text-sm text-white placeholder:text-slate-400 shadow-md transition focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-orange-500 disabled:opacity-50 disabled:cursor-not-allowed [color-scheme:dark];
+  }
+  .label {
+    @apply block text-xs text-slate-400 mb-1 ml-1;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg font-bold text-sm text-white bg-orange shadow-lg shadow-orange-900/30 active:scale-[0.98] transition-all duration-200 focus:outline-none focus:ring-1 focus:ring-orange-400 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-warm {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg font-bold text-sm text-white bg-orange shadow-lg shadow-orange-900/30 active:scale-[0.98] transition-all duration-200 focus:outline-none focus:ring-1 focus:ring-orange-400 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-rose {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg font-semibold text-sm text-white bg-red-600/80 hover:bg-red-700 transition-all duration-200 focus:outline-none focus:ring-1 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg font-semibold text-sm text-slate-300 bg-transparent border border-white/20 hover:text-white hover:border-white/40 transition-colors focus:outline-none focus:ring-1 focus:ring-white/20 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .th {
+    @apply px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-slate-400;
+  }
+  .td {
+    @apply px-4 py-3 text-sm text-slate-300;
+  }
+  /* Rótulo de los datos resumidos de un módulo (etiqueta sobre el valor). */
+  .dato-label {
+    @apply text-[11px] uppercase tracking-wider text-slate-400 font-semibold;
+  }
+  /* Texto de apoyo o aclaración debajo de un campo. */
+  .dato-ayuda {
+    @apply text-xs text-slate-400 mt-1;
+  }
+  /* Aviso de módulo bloqueado: la acción queda deshabilitada hasta la anterior. */
+  .aviso-bloqueo {
+    @apply flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-sm text-slate-400;
+  }
+  /* Opción seleccionable de un grupo de tarjetas (conmutadores, veredictos). */
+  .opcion {
+    @apply flex items-center gap-3 rounded-xl border px-4 py-3 text-left text-sm transition
+      disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .opcion-inactiva {
+    @apply border-white/10 bg-white/5 text-slate-200;
+  }
+  .opcion-activa-verde {
+    @apply border-emerald-500 bg-emerald-500/10 text-emerald-200;
+  }
+  .opcion-activa-naranja {
+    @apply border-orange-500 bg-orange-500/10 text-orange-200;
+  }
+  .opcion-activa-roja {
+    @apply border-red-500 bg-red-500/10 text-red-200;
+  }
+}
+
+.page-enter-active,
+.page-leave-active {
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+.modal-enter-active,
+.modal-leave-active {
+  transition: opacity 0.22s ease;
+}
+.modal-enter-active > div:last-child,
+.modal-leave-active > div:last-child {
+  transition: transform 0.22s ease;
+}
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+.modal-enter-from > div:last-child,
+.modal-leave-to > div:last-child {
+  transform: scale(0.95);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
