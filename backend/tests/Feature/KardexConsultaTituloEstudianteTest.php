@@ -149,7 +149,7 @@ class KardexConsultaTituloEstudianteTest extends TestCase
         $tramite = $estudiante->tramites()->firstOrFail();
 
         $datos = [
-            'accion' => 'aprobar',
+            'accion' => 'remitir',
             'titulo' => self::TITULO,
             'documentos' => [],
             'observaciones' => 'Documentación verificada.',
@@ -172,7 +172,7 @@ class KardexConsultaTituloEstudianteTest extends TestCase
             ->assertOk()
             ->json('tramite');
 
-        $this->assertSame('perfil_aprobado', $respuesta['estado_actual'] ?? null);
+        $this->assertSame('pendiente_concejo_universitario', $respuesta['estado_actual'] ?? null);
         $this->assertSame('Tesis de Grado', $respuesta['modalidad']['nombre'] ?? null);
     }
 }

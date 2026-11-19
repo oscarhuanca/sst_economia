@@ -69,7 +69,7 @@
           :completado="m.completado"
           :en-progreso="m.enProgreso"
           :bloqueado="m.bloqueado"
-          :editando="editandoId === m.id"
+          :editando="editandoId === m.id && !(perfilRemitido && m.id === config?.moduloPerfil)"
           :datos="m.datos"
           :cargando="guardandoId === m.id"
           :tramite="tramite"
@@ -210,6 +210,9 @@ const proximoPendiente = computed(() => proximoModuloPendiente(props.tramite));
 // define el módulo de perfil, sus documentos y sus textos.
 const config = computed(() => configDeTramite(props.tramite));
 
+// Una vez remitido, el módulo 1 queda solo para consulta: el HCC gestiona el tema y el tutor.
+const perfilRemitido = computed(() => props.tramite?.estado_actual === 'pendiente_concejo_universitario');
+
 // Motivo y observación del último rechazo del perfil (los ve el estudiante).
 const rechazoPerfil = computed(() => rechazoPerfilDe(props.tramite));
 
@@ -232,6 +235,7 @@ const editable = computed(() => config.value?.nombre === 'Tesis de Grado');
 
 function seleccionarModulo(moduloId) {
   if (!editable.value) return;
+  if (perfilRemitido.value && moduloId === config.value?.moduloPerfil) return;
   editandoId.value = editandoId.value === moduloId ? null : moduloId;
   requestAnimationFrame(() => {
     document.getElementById(`modulo-${moduloId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -276,11 +280,13 @@ async function guardar(moduloId, datos, archivos = {}) {
     toastStore.success(
       moduloId === 'defensa' && Number(datos.paso ?? 3) < 3
         ? 'Resolución y fecha de defensa registradas.'
-        : datos.accion === 'rechazar'
-          ? 'Perfil rechazado. Se notificó al estudiante para que presente otro perfil.'
-          : editandoId.value === moduloId
-            ? `Paso actualizado — ${modulo.badge}`
-            : `Paso completado — ${modulo.badge}`,
+        : datos.accion === 'remitir'
+          ? 'Documentación verificada y remitida al HCC.'
+          : datos.accion === 'rechazar'
+            ? 'Perfil rechazado. Se notificó al estudiante para que presente otro perfil.'
+            : editandoId.value === moduloId
+              ? `Paso actualizado — ${modulo.badge}`
+              : `Paso completado — ${modulo.badge}`,
     );
     editandoId.value = null;
     emit('guardado', actualizado);

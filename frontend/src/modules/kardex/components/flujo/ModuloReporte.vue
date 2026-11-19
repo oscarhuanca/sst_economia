@@ -320,7 +320,7 @@ const etapasProceso = computed(() => {
 
   etapas.push({
     etapa: `Aprobación del tema de ${tituloGenerico.value}`,
-    subetapa: '2. Aprobación del Tema',
+    subetapa: '2.1 Aprobación del tema',
     estado: aprobacionTema.value.completado ? 'COMPLETADO' : 'PENDIENTE',
     fecha: fechaLegible(aprobacionTema.value.fecha_resolucion) || '—',
     detalle: aprobacionTema.value.numero_resolucion
@@ -330,7 +330,7 @@ const etapasProceso = computed(() => {
 
   etapas.push({
     etapa: 'Designación de docente tutor',
-    subetapa: '2. Aprobación del Tema',
+    subetapa: '2.2 Designación del tutor',
     estado: aprobacionTema.value.tutor_id ? 'COMPLETADO' : 'PENDIENTE',
     fecha: fechaLegible(aprobacionTema.value.fecha_resolucion) || '—',
     detalle: nombreTutor.value,

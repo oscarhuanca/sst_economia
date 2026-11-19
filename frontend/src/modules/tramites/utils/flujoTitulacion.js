@@ -174,7 +174,7 @@ export function modulosDe(config) {
       icon: 'file-text',
       badge: 'Perfil Aprobado',
     },
-    { id: 'aprobacion_tema', label: 'Aprobación del Tema', estado: 'tema_aprobado', pct: 40, icon: 'book', badge: 'Tema Aprobado' },
+    { id: 'aprobacion_tema', label: 'Tema y Tutor', estado: 'tema_aprobado', pct: 40, icon: 'book', badge: 'Tema y Tutor Aprobados' },
     { id: 'tribunal_revisor', label: 'Tribunal Revisor', estado: 'tribunal_asignado', pct: 60, icon: 'users', badge: 'Tribunal Asignado' },
     { id: 'defensa', label: 'Defensa', estado: 'defensa_aprobada', pct: 75, icon: 'award', badge: 'Defensa Aprobada' },
     { id: 'publicacion', label: 'Publicación', estado: 'publicado', pct: 90, icon: 'globe', badge: 'Publicado' },
@@ -214,6 +214,7 @@ export function estadoBadgeTitulacion(tramite) {
   const estado = tramite?.estado_actual;
   if (!estado) return 'solicitud_presentada';
   if (ESTADOS_ERROR_TITULACION.includes(estado)) return estado;
+  if (estado === 'pendiente_concejo_universitario') return estado;
   const config = configDeTramite(tramite);
   if (!config) return estado;
   const pct = PCT_POR_ESTADO[estado] ?? 0;
@@ -232,8 +233,8 @@ export function datosDeModulo(tramite, moduloId) {
 /**
  * Título del trabajo propuesto por el estudiante para su perfil.
  *
- * Es el texto que KARDEX verifica contra los demás trabajos antes de aprobar
- * el perfil; si el trámite aún no registró título, se recurre al tema
+ * Es el texto que KARDEX verifica contra los demás trabajos antes de remitir
+ * al HCC; si el trámite aún no registró título, se recurre al tema
  * confirmado en el módulo de aprobación del tema.
  *
  * @param {Object|null} tramite Trámite del flujo de titulación.

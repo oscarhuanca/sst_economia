@@ -85,9 +85,9 @@ class TramiteService extends BasePaginadoService
     ];
 
     /**
-     * Estado al que pasa el trámite cuando KARDEX RECHAZA el perfil: el flujo
-     * queda a la espera de que el estudiante presente otro perfil con un título
-     * diferente.
+     * Estado heredado al que pasaba el trámite cuando KARDEX rechazaba el
+     * perfil. El módulo 1 ya no genera rechazos: solo verifica documentación y
+     * remite al HCC. Se conserva para los trámites ya registrados en ese estado.
      */
     private const PERFIL_RECHAZADO = 'perfil_rechazado';
 
@@ -464,11 +464,11 @@ class TramiteService extends BasePaginadoService
      * avanza el trámite al estado objetivo del módulo a través de la máquina de
      * estados (incluye puentes con el flujo heredado).
      *
-     * El módulo del PERFIL es el único que admite una decisión: con
-     * `accion: rechazar` el trámite pasa a `perfil_rechazado` y queda a la
-     * espera de que el estudiante presente otro perfil con un título diferente;
-     * con `accion: aprobar` (por defecto) avanza a `perfil_aprobado` y solo si
-     * el título propuesto no está repetido en otro trabajo de grado.
+     * El módulo del PERFIL solo verifica la documentación y remite el trámite
+     * al HCC (`pendiente_concejo_universitario`) para que apruebe el tema y
+     * designe al tutor en el módulo siguiente. La procedencia con
+     * `accion: rechazar` se conserva únicamente para trámites heredados ya
+     * registrados en `perfil_rechazado`.
      *
      * El módulo de tema puede incluir opcionalmente el PDF de la Resolución
      * que designa al docente como tutor; el módulo del tribunal puede incluir
@@ -768,13 +768,14 @@ class TramiteService extends BasePaginadoService
     {
         $perfil = FlujoTitulacionModalidad::perfilDe($modalidad);
 
-        return array_merge([$perfil => 'perfil_aprobado'], self::MODULOS_FLUJO_TITULACION);
+        return array_merge([$perfil => 'pendiente_concejo_universitario'], self::MODULOS_FLUJO_TITULACION);
     }
 
     /**
      * Indica si KARDEX está rechazando (en lugar de aprobar) el módulo enviado.
      *
-     * En el flujo de titulación el único módulo con decisión es el del perfil.
+     * Se conserva por compatibilidad con trámites heredados: el módulo 1 ya no
+     * ofrece la opción de rechazar, solo verifica y remite al HCC.
      *
      * @param  string  $modulo  Identificador del módulo.
      * @param  array<string, mixed>  $datos  Datos del formulario del módulo.
@@ -879,8 +880,8 @@ class TramiteService extends BasePaginadoService
                 if ($titulo === '') {
                     $errores[] = 'Ingrese el título de '.$etiqueta.' presentado por el estudiante.';
                 } elseif ($this->verificacionTitulo->duplicado($titulo, $tramite?->id_tramite, $tramite?->id_estudiante) !== null) {
-                    $errores[] = 'Ya existe un trabajo de grado registrado con el mismo título de '.$etiqueta.'. '
-                        .'Rechace el perfil para que el estudiante presente un título diferente.';
+                    $errores[] = 'No es posible remitir al HCC: ya existe un trabajo de grado registrado con el mismo título de '.$etiqueta.'. '
+                        .'Solicite al estudiante un título diferente.';
                 }
 
                 // Los documentos verificados son los que el estudiante adjuntó

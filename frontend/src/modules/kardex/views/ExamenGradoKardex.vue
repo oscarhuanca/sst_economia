@@ -134,7 +134,8 @@
 //
 // El avance de las tarjetas se deriva del historial especializado del examen,
 // no del estado actual, porque una reapertura devuelve el trámite atrás.
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
 import { useKardexStore } from '@/modules/kardex';
 import { iniciales } from '@/modules/kardex/utils/formato';
 import { esFlujoExamen } from '@/modules/examen/utils/flujoExamen';
@@ -143,6 +144,7 @@ import EmptyState from '@/ui/EmptyState.vue';
 import FlujoExamen from '../components/flujoExamen/FlujoExamen.vue';
 
 const kardexStore = useKardexStore();
+const route = useRoute();
 
 const identificador = ref('');
 
@@ -154,6 +156,15 @@ const buscar = async () => {
   if (!identificador.value.trim() || kardexStore.cargando) return;
   await kardexStore.consultar(identificador.value.trim());
 };
+
+/** Carga al estudiante indicado desde la alerta del panel general. */
+onMounted(async () => {
+  const inicial = String(route.query.identificador || '').trim();
+  if (inicial) {
+    identificador.value = inicial;
+    await buscar();
+  }
+});
 
 /** Limpia la consulta para empezar de nuevo. */
 const reiniciar = () => {

@@ -109,7 +109,7 @@ class TrabajoDirigidoTest extends TestCase
         $this->assertSame($otro->id_tramite, Tramite::first()->id_tramite);
     }
 
-    public function test_kardex_aproba_el_perfil_de_proyecto(): void
+    public function test_kardex_remite_el_perfil_de_proyecto_al_hcc(): void
     {
         $this->crearModalidadTrabajoDirigido();
         $tramite = $this->crearTramiteConTitulo(self::TITULO, $this->crearEstudianteConCuenta());
@@ -117,13 +117,13 @@ class TrabajoDirigidoTest extends TestCase
 
         $this->actingAs($kardex)
             ->postJson("/api/tramites/{$tramite->id_tramite}/flujo/perfil_proyecto", [
-                'datos' => $this->datosApruebaPerfil(self::TITULO),
+                'datos' => $this->datosVerificacionPerfil(self::TITULO),
             ])
             ->assertCreated();
 
         $tramite->refresh();
 
-        $this->assertSame('perfil_aprobado', $tramite->estado_actual);
+        $this->assertSame('pendiente_concejo_universitario', $tramite->estado_actual);
         $this->assertSame(self::TITULO, $tramite->hitos['modulos']['perfil_proyecto']['titulo']);
     }
 
@@ -285,12 +285,12 @@ class TrabajoDirigidoTest extends TestCase
     }
 
     /**
-     * Datos con los que KARDEX aprueba el perfil de proyecto (título y
+     * Datos con los que KARDEX verifica y remite el perfil de proyecto (título y
      * documentos verificados).
      *
      * @return array<string, mixed>
      */
-    private function datosApruebaPerfil(string $titulo): array
+    private function datosVerificacionPerfil(string $titulo): array
     {
         $documentos = [];
 
@@ -302,7 +302,7 @@ class TrabajoDirigidoTest extends TestCase
         }
 
         return [
-            'accion' => 'aprobar',
+            'accion' => 'remitir',
             'titulo' => $titulo,
             'documentos' => $documentos,
             'observaciones' => 'Documentación verificada.',

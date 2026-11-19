@@ -309,6 +309,7 @@
 // para reflejar sin re-buscar el título y los documentos que el estudiante
 // guardó en su perfil.
 import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { useRoute } from 'vue-router';
 import { useKardexStore } from '@/modules/kardex';
 import { fechaLegible, iniciales } from '@/modules/kardex/utils/formato';
 import { TimelineTramite, EstadoBadge, formatoEstado, ESTADOS_TERMINALES, useTramitesStore } from '@/modules/tramites';
@@ -323,6 +324,7 @@ import FlujoTitulacion from '../components/flujo/FlujoTitulacion.vue';
 const kardexStore = useKardexStore();
 const toastStore = useToastStore();
 const tramitesStore = useTramitesStore();
+const route = useRoute();
 
 const identificador = ref('');
 const nuevoEstado = ref(null);
@@ -408,9 +410,14 @@ const actualizarPostulante = () => {
   if (ci) kardexStore.refrescar(String(ci));
 };
 
-onMounted(() => {
+onMounted(async () => {
   sincronizarEstado();
   tramitesStore.cargarDocentes();
+  const inicial = String(route.query.identificador || '').trim();
+  if (inicial) {
+    identificador.value = inicial;
+    await buscar();
+  }
   temporizadorActualizacion = setInterval(actualizarPostulante, INTERVALO_ACTUALIZACION_MS);
 });
 

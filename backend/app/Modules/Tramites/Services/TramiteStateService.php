@@ -40,9 +40,9 @@ class TramiteStateService
      * @var array<string, array<int, string>>
      */
     private const TRANSICIONES_TITULACION = [
-        // 1. Fase de solicitud. El puente a `perfil_aprobado` permite que
-        //    Kardex registre el módulo de perfil directamente desde la
-        //    solicitud, sin pasar por el estado intermedio del Consejo.
+        // 1. Fase de solicitud. KARDEX verifica la documentación y remite al
+        //    Consejo Universitario; el puente a `perfil_aprobado` se conserva
+        //    para trámites heredados registrados directamente desde la solicitud.
         'solicitud_presentada' => ['pendiente_concejo_universitario', 'perfil_aprobado', 'perfil_rechazado', 'rechazado'],
         // 2. Evaluación del perfil por el Consejo Universitario.
         'pendiente_concejo_universitario' => ['perfil_aprobado', 'perfil_rechazado'],

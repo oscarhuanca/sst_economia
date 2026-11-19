@@ -126,7 +126,8 @@
 //
 // A diferencia del Examen de Grado, el flujo es estrictamente lineal: el estado
 // actual del trámite es la fuente de verdad del avance.
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
 import { useKardexStore } from '@/modules/kardex';
 import { iniciales } from '@/modules/kardex/utils/formato';
 import { esFlujoExcelencia } from '@/modules/excelencia/utils/flujoExcelencia';
@@ -135,6 +136,7 @@ import EmptyState from '@/ui/EmptyState.vue';
 import FlujoExcelencia from '../components/flujoExcelencia/FlujoExcelencia.vue';
 
 const kardexStore = useKardexStore();
+const route = useRoute();
 
 const identificador = ref('');
 
@@ -146,6 +148,15 @@ const buscar = async () => {
     if (!identificador.value.trim() || kardexStore.cargando) return;
     await kardexStore.consultar(identificador.value.trim());
 };
+
+/** Carga al estudiante indicado desde la alerta del panel general. */
+onMounted(async () => {
+    const inicial = String(route.query.identificador || '').trim();
+    if (inicial) {
+        identificador.value = inicial;
+        await buscar();
+    }
+});
 
 /** Limpia la consulta para empezar de nuevo. */
 const reiniciar = () => {

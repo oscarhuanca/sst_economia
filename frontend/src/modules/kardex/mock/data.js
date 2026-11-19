@@ -12,6 +12,7 @@
 export const SECUENCIAS = {
   'Tesis de Grado': [
     'solicitud_presentada',
+    'pendiente_concejo_universitario',
     'perfil_aprobado',
     'tema_aprobado',
     'tribunal_asignado',
@@ -21,6 +22,7 @@ export const SECUENCIAS = {
   ],
   'Trabajo Dirigido': [
     'solicitud_presentada',
+    'pendiente_concejo_universitario',
     'perfil_aprobado',
     'tutor_asignado',
     'investigacion_en_desarrollo',
@@ -752,8 +754,8 @@ export function asignarTutorMock(tramite, idTutor) {
 
 // Estado objetivo de cada módulo del flujo de titulación (espejo del backend).
 const ESTADOS_MODULOS = {
-  perfil_tesis: 'perfil_aprobado',
-  perfil_proyecto: 'perfil_aprobado',
+  perfil_tesis: 'pendiente_concejo_universitario',
+  perfil_proyecto: 'pendiente_concejo_universitario',
   aprobacion_tema: 'tema_aprobado',
   tribunal_revisor: 'tribunal_asignado',
   defensa: 'defensa_aprobada',
@@ -761,8 +763,8 @@ const ESTADOS_MODULOS = {
   publicacion: 'publicado',
 };
 
-// Estado al que pasa el trámite cuando KARDEX rechaza el perfil (el estudiante
-// debe presentar otro perfil con un título diferente).
+// Estado heredado al que pasaba el trámite cuando KARDEX rechazaba el perfil.
+// El módulo 1 ya no genera rechazos: solo verifica y remite al HCC.
 const PERFIL_RECHAZADO = 'perfil_rechazado';
 
 // Nota mínima para aprobar la defensa (espejo de `tesis.nota_minima_defensa`).
@@ -1382,6 +1384,21 @@ export function resumenMock() {
 
   const pendientes = POSTULANTES_MOCK.filter((p) => !p.tiene_cuenta);
 
+  const titulacionesNuevas = tramites.filter((t) => t.estado_actual === 'solicitud_presentada');
+
+  const titulaciones = titulacionesNuevas.map((t) => ({
+    id_tramite: t.id_tramite,
+    id_estudiante: t.id_estudiante,
+    ci: t.estudiante?.ci,
+    nombres: t.estudiante?.nombres,
+    apellidos: t.estudiante?.apellidos,
+    registro_universitario: t.estudiante?.registro_universitario,
+    id_modalidad: t.id_modalidad,
+    modalidad: t.modalidad?.nombre,
+    estado_actual: t.estado_actual,
+    created_at: t.created_at,
+  }));
+
   const totalPorModalidad = (idModalidad) =>
     tramites.filter((t) => t.id_modalidad === idModalidad);
 
@@ -1412,6 +1429,8 @@ export function resumenMock() {
         registro_universitario: p.registro_universitario,
         created_at: new Date().toISOString(),
       })),
+      con_modalidad: new Set(titulacionesNuevas.map((t) => t.id_estudiante)).size,
+      titulaciones,
     },
     tutores: {
       total: DOCENTES_MOCK.length,

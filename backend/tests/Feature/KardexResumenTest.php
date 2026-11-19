@@ -83,6 +83,41 @@ class KardexResumenTest extends TestCase
         $this->assertSame('Pendiente Sin Cuenta', $estudiantes['pendientes'][0]['nombres'].' '.$estudiantes['pendientes'][0]['apellidos']);
     }
 
+    public function test_el_resumen_cuenta_y_lista_solo_las_solicitudes_nuevas_de_titulacion(): void
+    {
+        $tesis = Modalidad::factory()->tesis()->create();
+        $examen = Modalidad::factory()->examen()->create();
+
+        $estudianteTesis = Estudiante::factory()->create([
+            'nombres' => 'Modalidad',
+            'apellidos' => 'Tesis Nueva',
+        ]);
+        $tramiteTesis = Tramite::factory()->create([
+            'id_estudiante' => $estudianteTesis->id_estudiante,
+            'id_modalidad' => $tesis->id_modalidad,
+            'estado_actual' => 'solicitud_presentada',
+        ]);
+
+        $this->crearTramite($tesis, 'perfil_aprobado');
+        $this->crearTramite($examen, 'aprobado');
+        $this->crearTramite($tesis, 'titulado');
+
+        $estudiantes = $this->consultarResumen()['estudiantes'];
+
+        $this->assertSame(1, $estudiantes['con_modalidad']);
+        $this->assertCount(1, $estudiantes['titulaciones']);
+        $this->assertSame(
+            [$tramiteTesis->id_tramite],
+            collect($estudiantes['titulaciones'])->pluck('id_tramite')->all()
+        );
+
+        $listado = $estudiantes['titulaciones'][0];
+        $this->assertSame($estudianteTesis->ci, $listado['ci']);
+        $this->assertSame('Modalidad Tesis Nueva', $listado['nombres'].' '.$listado['apellidos']);
+        $this->assertSame('Tesis de Grado', $listado['modalidad']);
+        $this->assertSame('solicitud_presentada', $listado['estado_actual']);
+    }
+
     /**
      * Consulta el resumen autenticado como usuario de gestión.
      *

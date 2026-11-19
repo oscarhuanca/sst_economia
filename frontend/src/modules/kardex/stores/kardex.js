@@ -6,6 +6,19 @@ import { MODALIDADES_MOCK, buscarMock, consultarMock, generarCredencialesMock, a
 // Modalidades que el KARDEX puede asignar a un postulante.
 export const MODALIDADES_ASIGNABLES = ['Tesis de Grado', 'Trabajo Dirigido', 'Examen de Grado', 'Excelencia Académica'];
 
+// Módulo del dashboard donde KARDEX verifica y continúa el flujo de cada modalidad.
+export const RUTA_MODALIDAD_KARDEX = {
+  'Tesis de Grado': 'KardexTesis',
+  'Trabajo Dirigido': 'KardexTrabajoDirigido',
+  'Examen de Grado': 'KardexExamen',
+  'Excelencia Académica': 'KardexExcelencia',
+};
+
+/** @returns {string|null} Nombre de la ruta del módulo KARDEX de una modalidad. */
+export function rutaKardexDeModalidad(nombre) {
+  return RUTA_MODALIDAD_KARDEX[nombre] || null;
+}
+
 /**
  * Store del Dashboard de KARDEX.
  *

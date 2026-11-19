@@ -38,7 +38,7 @@
       </p>
     </div>
 
-    <!-- Perfil rechazado: el flujo espera la corrección del estudiante -->
+    <!-- Estado heredado: el flujo espera la corrección del estudiante -->
     <div v-else-if="rechazado && !editando" class="space-y-3">
       <div class="rounded-xl bg-red-900/50 border border-red-500/30 px-4 py-3.5">
         <p class="flex items-center gap-2 text-sm font-bold text-red-300">
@@ -67,19 +67,19 @@
       <p class="text-xs text-slate-400 flex items-start gap-1.5">
         <AppIcon name="info" :size="13" class="mt-0.5 shrink-0" />
         Cuando el estudiante envíe el perfil corregido volverá a este módulo para
-        verificar el nuevo título antes de aprobarlo.
+        verificar el nuevo título antes de remitirlo al HCC.
       </p>
     </div>
 
-    <!-- Remitido al HCC: la aprobación del perfil se valida con la Resolución del tema -->
+    <!-- Remitido al HCC: tema y tutor se registran con la Resolución del HCC -->
     <div v-else-if="esperandoHcc && !editando" class="space-y-3">
       <div class="flex items-start gap-3 rounded-xl bg-orange-500/10 border border-orange-500/30 px-4 py-3.5 text-sm text-orange-100">
         <AppIcon name="info" :size="18" class="shrink-0 mt-0.5 text-orange-300" />
         <div>
-          <p class="font-semibold text-orange-200">Documentación remitida al HCC — perfil pendiente de aprobación</p>
+          <p class="font-semibold text-orange-200">Documentación verificada y remitida al HCC</p>
           <p class="mt-1 text-orange-100/90">
-            La validación y aprobación del perfil se realizará al ingresar la
-            <strong>Resolución de aprobación del tema</strong> del HCC (siguiente paso).
+            La aprobación del tema y la designación del tutor se registrarán en el
+            siguiente paso con la <strong>Resolución del HCC</strong>.
           </p>
         </div>
       </div>
@@ -98,13 +98,13 @@
     </div>
 
     <!-- Revisión del perfil -->
-    <form v-else @submit.prevent="aprobar">
+    <form v-else @submit.prevent="remitir">
       <p v-if="editando" class="mb-4 text-xs font-semibold text-orange-300 flex items-center gap-1.5">
         <AppIcon name="pencil" :size="14" />
         Editando información y documentos ya registrados.
       </p>
       <!-- Título presentado por el estudiante: editable para corregir errores
-           ortográficos; la corrección se persiste al aprobar el perfil. -->
+           ortográficos; la corrección se persiste al remitir al HCC. -->
       <div class="rounded-xl bg-white/5 border border-white/10 p-3.5">
         <label class="label" for="perfil-titulo">{{ tituloLabel }} presentado por el estudiante</label>
         <textarea
@@ -118,7 +118,7 @@
         <div class="mt-2.5 flex flex-wrap items-center justify-between gap-2.5">
           <p class="flex items-center gap-1.5 text-xs text-slate-400">
             <AppIcon name="info" :size="13" class="shrink-0" />
-            Puede corregir errores ortográficos; verifique el título y el resultado se guardará al aprobar el perfil.
+            Puede corregir errores ortográficos; verifique el título y el resultado se guardará al remitir al HCC.
           </p>
           <button
             type="button"
@@ -133,7 +133,7 @@
         </div>
         <p v-if="tituloSinVerificar" class="mt-2 flex items-center gap-1.5 text-xs text-amber-300">
           <AppIcon name="alert-triangle" :size="13" class="shrink-0" />
-          El título fue modificado: verifíquelo nuevamente antes de aprobar el perfil.
+          El título fue modificado: verifíquelo nuevamente antes de remitir al HCC.
         </p>
 
         <!-- Resultado de la verificación -->
@@ -144,7 +144,7 @@
               <template v-if="tituloDuplicado">
                 Ya existe un trabajo registrado con <strong>exactamente este título</strong>.
                 <template v-if="duplicadoTitulo"> Corresponde a {{ duplicadoTitulo.estudiante?.nombres }} {{ duplicadoTitulo.estudiante?.apellidos }}.</template>
-                Perfil no se puede aprobar con este título.
+                No se puede remitir al HCC con este título.
               </template>
               <template v-else-if="tituloHaySimilares">
                 No hay títulos idénticos, pero se encontraron
@@ -247,17 +247,13 @@
 
       <!-- Observación -->
       <div class="mt-4">
-        <label class="label" for="perfil-observaciones">
-          {{ rechazar ? 'Observación del rechazo (obligatoria)' : 'Observaciones (opcional)' }}
-        </label>
+        <label class="label" for="perfil-observaciones">Observaciones (opcional)</label>
         <textarea
           id="perfil-observaciones"
           v-model="form.observaciones"
           rows="3"
           class="input resize-none"
-          :placeholder="rechazar
-            ? 'Explique al estudiante por qué se rechaza su perfil y qué debe corregir...'
-            : 'Comentarios sobre la revisión de la documentación...'"
+          placeholder="Comentarios sobre la verificación de la documentación..."
         ></textarea>
       </div>
 
@@ -270,54 +266,20 @@
 
       <p v-if="tituloDuplicado" class="mt-4 flex items-start gap-2 rounded-xl bg-red-900/50 border border-red-500/30 px-3.5 py-3 text-sm text-red-300">
         <AppIcon name="alert-triangle" :size="16" class="shrink-0 mt-0.5" />
-        Para continuar el flujo el perfil debe ser aprobado. Hay un trabajo con el mismo
-        título: rechace el perfil para que el estudiante presente otro con un título diferente.
+        No se puede remitir al HCC: hay un trabajo con el mismo título. Solicite al
+        estudiante un título diferente antes de continuar.
       </p>
 
-      <!-- Decisión de KARDEX -->
-      <div class="mt-4 flex flex-col sm:flex-row sm:justify-end gap-2.5">
+      <!-- Remisión al HCC -->
+      <div class="mt-4 flex justify-end">
         <button
-          v-if="rechazar"
-          type="button"
-          class="btn-ghost justify-center"
-          @click="cancelarRechazo"
-        >
-          <AppIcon name="x" :size="16" />
-          Volver a aprobar
-        </button>
-
-        <button
-          v-if="!rechazar"
-          type="button"
-          class="btn-warm justify-center"
-          :disabled="cargando"
-          @click="iniciarRechazo"
-        >
-          <AppIcon name="x-circle" :size="17" />
-          <span class="uppercase tracking-wide">Rechazar perfil</span>
-        </button>
-
-        <button
-          v-else
-          type="button"
-          class="justify-center px-5 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wide text-white bg-red-600 hover:bg-red-700 transition flex items-center gap-2 shadow-lg shadow-red-900/30"
-          :disabled="cargando"
-          @click="rechazarPerfil"
-        >
-          <AppIcon v-if="cargando" name="loader" :size="17" class="animate-spin" />
-          <AppIcon v-else name="x-circle" :size="17" />
-          Confirmar rechazo
-        </button>
-
-        <button
-          v-if="!rechazar"
           type="submit"
           class="btn-warm justify-center"
           :disabled="cargando || tituloDuplicado || tituloSinVerificar"
         >
           <AppIcon v-if="cargando" name="loader" :size="18" class="animate-spin" />
-          <AppIcon v-else name="check" :size="18" />
-          <span class="uppercase tracking-wide">Aprobar perfil</span>
+          <AppIcon v-else name="send" :size="18" />
+          <span class="uppercase tracking-wide">Remitir al HCC</span>
         </button>
       </div>
     </form>
@@ -334,15 +296,12 @@
 // `MODALIDADES_TITULACION` del núcleo compartido).
 //
 // Integra la verificación de unicidad del título presentado por el estudiante
-// (que KARDEX puede corregir —p. ej. errores ortográficos— antes de decidir;
-// la corrección se persiste al aprobar) y la decisión de aprobar o rechazar el
-// perfil:
-//
-//   - Aprobar: exige título verificado (sin trabajos con el mismo título) y los
-//     documentos marcados; el trámite avanza a `perfil_aprobado`.
-//   - Rechazar: exige una observación (con sugerencia automática cuando el
-//     título está repetido); el trámite pasa a `perfil_rechazado` y queda a la
-//     espera de que el estudiante presente otro perfil con otro título.
+// (que KARDEX puede corregir —p. ej. errores ortográficos— antes de remitir;
+// la corrección se persiste con la remisión) y la verificación documental.
+// Una vez validada la documentación, KARDEX remite el trámite al HCC
+// (`pendiente_concejo_universitario`), donde se aprueba el tema y se designa al
+// tutor en el módulo siguiente. El estado heredado `perfil_rechazado` solo se
+// muestra cuando ya fue registrado: desde este módulo ya no se generan rechazos.
 import { computed, reactive, ref, watch } from 'vue';
 import { tituloPerfil, validarModulo } from '@/modules/tramites/utils/flujoTitulacion';
 import { useKardexStore } from '../../stores/kardex';
@@ -368,7 +327,6 @@ const emit = defineEmits(['guardar', 'consultar-coincidencia']);
 
 const kardexStore = useKardexStore();
 
-const rechazar = ref(false);
 const errores = ref([]);
 
 // Último título del estudiante copiado al formulario (para no pisar las
@@ -376,7 +334,7 @@ const errores = ref([]);
 const ultimoTituloEstudiante = ref(null);
 
 // Título con el que se verificó la unicidad por última vez; si el formulario
-// se desvía de él, la verificación debe repetirse antes de aprobar.
+// se desvía de él, la verificación debe repetirse antes de remitir.
 const tituloVerificado = ref('');
 
 const form = reactive({
@@ -410,7 +368,7 @@ const etiquetaSimilares = computed(() => {
 
 const descripcionModulo = computed(
   () => `Revise el título y los ${documentosPerfil.value.length} documentos presentados por el postulante, `
-    + 'verifíquelos y apruebe o rechace su perfil. El estudiante sube los PDF; aquí solo se validan.',
+    + 'verifíquelos y remítalos al HCC para la aprobación del tema y la designación del tutor.',
 );
 
 // Garantiza que el formulario tenga una entrada por cada documento de la
@@ -423,8 +381,8 @@ watch(documentosPerfil, (docs) => {
   });
 }, { immediate: true });
 
-// true mientras el trámite está en `perfil_rechazado`: el módulo solo informa
-// al estudiante y espera a que vuelva a presentar su perfil.
+// Estado heredado `perfil_rechazado`: el módulo solo informa al estudiante y
+// espera a que vuelva a presentar su perfil.
 const rechazado = computed(() => props.tramite?.estado_actual === 'perfil_rechazado');
 const esperandoHcc = computed(() => props.tramite?.estado_actual === 'pendiente_concejo_universitario');
 
@@ -435,7 +393,7 @@ const tituloAprobado = computed(() => props.datos?.titulo || tituloPresentado.va
 const tituloRechazado = computed(() => tituloPresentado.value);
 
 // Identificador del módulo de perfil de la modalidad (define el estado al que
-// avanza el trámite cuando KARDEX lo aprueba).
+// avanza el trámite cuando KARDEX remite la documentación al HCC).
 const moduloPerfilId = computed(() => props.config?.moduloPerfil || 'perfil_tesis');
 
 // true cuando el título en pantalla (posiblemente corregido por KARDEX) aún no
@@ -518,7 +476,6 @@ watch(
   (editando) => {
     if (editando) {
       errores.value = [];
-      rechazar.value = false;
       hidratarFormulario();
       verificarTitulo();
     }
@@ -527,7 +484,7 @@ watch(
 
 // Al entrar en revisión —o cuando el estudiante cambia el título que está en
 // pantalla, gracias al auto-refresco de la vista— se verifica la unicidad:
-// KARDEX debe ver el resultado vigente antes de decidir.
+// KARDEX debe ver el resultado vigente antes de remitir.
 watch(
   [() => props.enProgreso, tituloPresentado],
   ([enProgreso]) => {
@@ -537,7 +494,7 @@ watch(
 );
 
 // Al corregir el título, la verificación previa deja de ser válida: se limpia
-// el resultado para que KARDEX verifique la versión vigente antes de aprobar.
+// el resultado para que KARDEX verifique la versión vigente antes de remitir.
 watch(
   () => form.titulo,
   (titulo) => {
@@ -563,21 +520,6 @@ async function verificarTitulo() {
   return kardexStore.verificarTitulo(titulo, props.tramite?.id_tramite || null);
 }
 
-/** Prepara el rechazo: sugiere el motivo cuando el título está repetido. */
-function iniciarRechazo() {
-  rechazar.value = true;
-  errores.value = [];
-  if (tituloDuplicado.value && !form.observaciones.trim()) {
-    form.observaciones = props.config?.motivoTituloRepetido || '';
-  }
-}
-
-/** Vuelve al modo de aprobación conservando lo revisado. */
-function cancelarRechazo() {
-  rechazar.value = false;
-  errores.value = [];
-}
-
 function obtenerDatos(accion) {
   return {
     accion,
@@ -600,21 +542,9 @@ function obtenerDatos(accion) {
   };
 }
 
-/** Aprueba el perfil: el trámite avanza a la siguiente etapa del flujo. */
-function aprobar() {
-  const datos = obtenerDatos('aprobar');
-  const res = validarModulo(moduloPerfilId.value, datos, props.config?.nombre);
-  if (!res.ok) {
-    errores.value = res.errores;
-    return;
-  }
-  errores.value = [];
-  emit('guardar', datos);
-}
-
-/** Rechaza el perfil: el estudiante deberá presentar otro con otro título. */
-function rechazarPerfil() {
-  const datos = obtenerDatos('rechazar');
+/** Remite la documentación verificada al HCC para aprobar tema y designar tutor. */
+function remitir() {
+  const datos = obtenerDatos('remitir');
   const res = validarModulo(moduloPerfilId.value, datos, props.config?.nombre);
   if (!res.ok) {
     errores.value = res.errores;

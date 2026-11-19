@@ -1,70 +1,83 @@
 <template>
   <ModuloTarjeta
     numero="2"
-    titulo="Aprobación del Tema"
-    descripcion="Registre la Resolución del HCC que aprueba el tema, valide la aprobación del perfil y asigne el tutor."
+    titulo="Aprobación del tema y designación del tutor"
+    descripcion="Registre la Resolución del HCC, valide la aprobación del perfil, apruebe el tema y designe al tutor."
     icono="book"
     :completado="completado && !editando"
     :en-progreso="enProgreso || editando"
     :bloqueado="bloqueado && !editando"
   >
-    <div v-if="completado && datos && !editando" class="space-y-3">
-      <dl class="grid sm:grid-cols-2 gap-2.5">
-        <div class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
-          <dt class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">N.º Resolución HCC</dt>
-          <dd class="text-sm font-semibold text-white mt-0.5">{{ datos.numero_resolucion }}</dd>
+    <div v-if="completado && datos && !editando" class="space-y-4">
+      <section class="space-y-3">
+        <h5 class="text-xs font-bold uppercase tracking-wider text-orange-300 flex items-center gap-1.5">
+          <AppIcon name="book" :size="15" />
+          2.1 Aprobación del tema
+        </h5>
+        <dl class="grid sm:grid-cols-2 gap-2.5">
+          <div class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
+            <dt class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">N.º Resolución HCC</dt>
+            <dd class="text-sm font-semibold text-white mt-0.5">{{ datos.numero_resolucion }}</dd>
+          </div>
+          <div class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
+            <dt class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Fecha de Resolución</dt>
+            <dd class="text-sm font-semibold text-white mt-0.5">{{ fechaLegible(datos.fecha_resolucion) }}</dd>
+          </div>
+        </dl>
+        <div
+          v-if="datos.resolucion_tema?.nombre"
+          class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5 flex items-center justify-between gap-3"
+        >
+          <span class="flex items-center gap-2 text-sm text-slate-200 min-w-0">
+            <AppIcon name="file-text" :size="15" class="text-orange-300 shrink-0" />
+            <span class="truncate">Resolución de aprobación del tema: {{ datos.resolucion_tema.nombre }}</span>
+          </span>
+          <a
+            v-if="datos.resolucion_tema.ruta"
+            :href="assetUrl(datos.resolucion_tema.ruta)"
+            target="_blank"
+            rel="noopener"
+            class="btn-ghost !py-1.5 text-xs shrink-0"
+          >
+            <AppIcon name="link" :size="13" />
+            Ver PDF
+          </a>
         </div>
         <div class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
-          <dt class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Fecha de Resolución</dt>
-          <dd class="text-sm font-semibold text-white mt-0.5">{{ fechaLegible(datos.fecha_resolucion) }}</dd>
+          <dt class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Tema de Investigación</dt>
+          <dd class="text-sm font-semibold text-white mt-0.5">{{ datos.tema_investigacion }}</dd>
         </div>
-      </dl>
-      <div
-        v-if="datos.resolucion_tema?.nombre"
-        class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5 flex items-center justify-between gap-3"
-      >
-        <span class="flex items-center gap-2 text-sm text-slate-200 min-w-0">
-          <AppIcon name="file-text" :size="15" class="text-orange-300 shrink-0" />
-          <span class="truncate">Resolución de aprobación del tema: {{ datos.resolucion_tema.nombre }}</span>
-        </span>
-        <a
-          v-if="datos.resolucion_tema.ruta"
-          :href="assetUrl(datos.resolucion_tema.ruta)"
-          target="_blank"
-          rel="noopener"
-          class="btn-ghost !py-1.5 text-xs shrink-0"
+      </section>
+
+      <section class="space-y-3 pt-4 border-t border-white/10">
+        <h5 class="text-xs font-bold uppercase tracking-wider text-orange-300 flex items-center gap-1.5">
+          <AppIcon name="user-check" :size="15" />
+          2.2 Designación del tutor
+        </h5>
+        <div class="rounded-xl bg-emerald-500/10 border border-emerald-500/30 px-3.5 py-2.5 flex items-center gap-2">
+          <AppIcon name="user-check" :size="16" class="text-emerald-400" />
+          <span class="text-sm font-semibold text-emerald-200">{{ nombreTutor }}</span>
+        </div>
+        <div
+          v-if="datos.resolucion_tutor?.nombre"
+          class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5 flex items-center justify-between gap-3"
         >
-          <AppIcon name="link" :size="13" />
-          Ver PDF
-        </a>
-      </div>
-      <div class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
-        <dt class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Tema de Investigación</dt>
-        <dd class="text-sm font-semibold text-white mt-0.5">{{ datos.tema_investigacion }}</dd>
-      </div>
-      <div class="rounded-xl bg-emerald-500/10 border border-emerald-500/30 px-3.5 py-2.5 flex items-center gap-2">
-        <AppIcon name="user-check" :size="16" class="text-emerald-400" />
-        <span class="text-sm font-semibold text-emerald-200">{{ nombreTutor }}</span>
-      </div>
-      <div
-        v-if="datos.resolucion_tutor?.nombre"
-        class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5 flex items-center justify-between gap-3"
-      >
-        <span class="flex items-center gap-2 text-sm text-slate-200 min-w-0">
-          <AppIcon name="file-text" :size="15" class="text-orange-300 shrink-0" />
-          <span class="truncate">{{ datos.resolucion_tutor.nombre }}</span>
-        </span>
-        <a
-          v-if="datos.resolucion_tutor.ruta"
-          :href="assetUrl(datos.resolucion_tutor.ruta)"
-          target="_blank"
-          rel="noopener"
-          class="btn-ghost !py-1.5 text-xs shrink-0"
-        >
-          <AppIcon name="link" :size="13" />
-          Ver PDF
-        </a>
-      </div>
+          <span class="flex items-center gap-2 text-sm text-slate-200 min-w-0">
+            <AppIcon name="file-text" :size="15" class="text-orange-300 shrink-0" />
+            <span class="truncate">{{ datos.resolucion_tutor.nombre }}</span>
+          </span>
+          <a
+            v-if="datos.resolucion_tutor.ruta"
+            :href="assetUrl(datos.resolucion_tutor.ruta)"
+            target="_blank"
+            rel="noopener"
+            class="btn-ghost !py-1.5 text-xs shrink-0"
+          >
+            <AppIcon name="link" :size="13" />
+            Ver PDF
+          </a>
+        </div>
+      </section>
     </div>
 
     <div v-else-if="bloqueado && !editando">
@@ -79,6 +92,11 @@
         <AppIcon name="pencil" :size="14" />
         Editando información y documentos ya registrados.
       </p>
+
+      <div class="sm:col-span-2 flex items-center gap-2 text-orange-300">
+        <AppIcon name="book" :size="16" />
+        <h5 class="text-sm font-bold uppercase text-white">2.1 Aprobación del tema</h5>
+      </div>
 
       <div v-if="debeAprobarPerfil" class="sm:col-span-2 rounded-xl bg-orange-500/10 border border-orange-500/30 p-4">
         <p class="text-sm font-semibold text-orange-200 flex items-center gap-2">
@@ -160,6 +178,11 @@
           class="input resize-none"
           placeholder="Tema de investigación aprobado por el Consejo..."
         ></textarea>
+      </div>
+
+      <div class="sm:col-span-2 flex items-center gap-2 pt-2 border-t border-white/10 text-orange-300">
+        <AppIcon name="user-check" :size="16" />
+        <h5 class="text-sm font-bold uppercase text-white">2.2 Designación del tutor</h5>
       </div>
 
       <div class="sm:col-span-2">

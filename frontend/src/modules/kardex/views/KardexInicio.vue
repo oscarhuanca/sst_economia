@@ -69,6 +69,39 @@
         </div>
       </div>
 
+      <!-- Alerta de solicitudes nuevas de modalidad de titulación -->
+      <div
+        v-if="conModalidad > 0"
+        class="rounded-2xl border border-sky-500/40 bg-sky-500/10 p-4 sm:p-5"
+      >
+        <div class="flex items-start gap-3">
+          <div class="w-10 h-10 shrink-0 rounded-xl bg-sky-500/20 text-sky-300 flex items-center justify-center">
+            <AppIcon name="file-text" :size="22" />
+          </div>
+          <div class="min-w-0 flex-1">
+            <p class="font-bold text-white">
+              {{ conModalidad }} {{ conModalidad === 1 ? 'estudiante optó recientemente' : 'estudiantes optaron recientemente' }} por una modalidad de titulación
+            </p>
+            <p class="text-sm text-slate-300 mt-0.5">
+              Solicitudes nuevas pendientes de verificación. Seleccione un estudiante para continuar el flujo en el módulo de su modalidad.
+            </p>
+            <div v-if="listaTitulaciones.length" class="flex flex-wrap gap-2 mt-3 max-h-32 overflow-y-auto pr-1">
+              <button
+                v-for="t in listaTitulaciones"
+                :key="t.id_tramite || t.id_estudiante"
+                type="button"
+                class="inline-flex items-center gap-2 rounded-full border border-sky-500/30 bg-primary/60 px-3 py-1.5 text-xs font-semibold text-white hover:border-sky-400 hover:bg-sky-500/20 transition"
+                @click="abrirModalidad(t)"
+              >
+                <AppIcon name="user" :size="13" />
+                {{ t.nombres }} {{ t.apellidos }}
+                <span class="text-slate-400">{{ t.modalidad }}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- KPIs principales protegidos con optional chaining -->
       <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Estudiantes" :value="resumen?.estudiantes?.total || 0" sublabel="Postulantes registrados" icon="users" tone="indigo" />
@@ -178,7 +211,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { useKardexStore } from '@/modules/kardex';
+import { rutaKardexDeModalidad, useKardexStore } from '@/modules/kardex';
 import { useToastStore } from '@/core/stores/toast';
 import AppIcon from '@/ui/AppIcon.vue';
 import StatCard from '@/ui/StatCard.vue';
@@ -194,6 +227,13 @@ const pendientes = computed(() => resumen.value?.estudiantes?.pendientes_credenc
 const listaPendientes = computed(() =>
   Array.isArray(resumen.value?.estudiantes?.pendientes) ? resumen.value.estudiantes.pendientes : [],
 );
+const listaTitulaciones = computed(() => {
+  const titulaciones = resumen.value?.estudiantes?.titulaciones;
+  return Array.isArray(titulaciones)
+    ? titulaciones.filter((t) => t.estado_actual === 'solicitud_presentada')
+    : [];
+});
+const conModalidad = computed(() => listaTitulaciones.value.length);
 
 const porcentaje = (valor, total) => (total > 0 ? Math.round(((valor || 0) / total) * 100) : 0);
 
@@ -212,6 +252,16 @@ const irARegistro = () => {
   router.push({ name: 'KardexRegistroPostulante', query: { etapa: 'credenciales' } });
 };
 
+/** Abre el módulo de la modalidad elegida con el estudiante ya filtrado. */
+const abrirModalidad = (titulacion) => {
+  const nombreRuta = rutaKardexDeModalidad(titulacion.modalidad);
+  if (!nombreRuta) return;
+  router.push({
+    name: nombreRuta,
+    query: { identificador: titulacion.ci || titulacion.registro_universitario },
+  });
+};
+
 /** Muestra la alerta visual cuando hay postulantes en espera. */
 const avisarPendientes = () => {
   if (pendientes.value === 0) return;
@@ -220,11 +270,20 @@ const avisarPendientes = () => {
   );
 };
 
+/** Avisa de las solicitudes nuevas de titulación pendientes de verificación. */
+const avisarTitulaciones = () => {
+  if (conModalidad.value === 0) return;
+  toastStore.info(
+    `${conModalidad.value} ${conModalidad.value === 1 ? 'solicitud nueva' : 'solicitudes nuevas'} de titulación pendiente${conModalidad.value === 1 ? '' : 's'} de verificación.`,
+  );
+};
+
 onMounted(async () => {
   cargando.value = true;
   try {
     await kardexStore.cargarResumen();
     avisarPendientes();
+    avisarTitulaciones();
   } catch (e) {
     console.error("Error al cargar resumen:", e);
   } finally {
@@ -237,6 +296,7 @@ const recargar = async () => {
   try {
     await kardexStore.cargarResumen(true);
     avisarPendientes();
+    avisarTitulaciones();
   } finally {
     cargando.value = false;
   }

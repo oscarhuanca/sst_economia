@@ -183,6 +183,10 @@ class KardexService
      * Agrega en SQL los totales por modalidad, estudiantes y tutores para la
      * vista principal del dashboard (panel general).
      *
+     * También expone, bajo `estudiantes`, las solicitudes nuevas de titulación
+     * (`con_modalidad` y `titulaciones`): solo trámites en `solicitud_presentada`,
+     * sin avance en el flujo, para la alerta del panel general.
+     *
      * El verde (`aprobados`) cuenta los trámites cuyo flujo YA culminó de forma
      * aprobatoria según su modalidad: `titulado` en todas y `aprobado` en las
      * que cierran ahí. En Examen de Grado `aprobado` todavía espera el reporte,
@@ -245,6 +249,35 @@ class KardexService
             ])
             ->all();
 
+        // Solicitudes nuevas: recién asignada la modalidad, todavía sin avance.
+        // Los trámites que ya están en fases posteriores no se muestran en la
+        // alerta del panel general.
+        $titulaciones = $this->titulacionesNuevas()
+            ->select([
+                'id_tramite', 'id_estudiante', 'id_modalidad', 'estado_actual', 'created_at',
+            ])
+            ->with([
+                'modalidad:id_modalidad,nombre',
+                'estudiante:id_estudiante,ci,nombres,apellidos,registro_universitario',
+            ])
+            ->latest()
+            ->get()
+            ->map(fn (Tramite $tramite) => [
+                'id_tramite' => $tramite->id_tramite,
+                'id_estudiante' => $tramite->id_estudiante,
+                'ci' => $tramite->estudiante?->ci,
+                'nombres' => $tramite->estudiante?->nombres,
+                'apellidos' => $tramite->estudiante?->apellidos,
+                'registro_universitario' => $tramite->estudiante?->registro_universitario,
+                'id_modalidad' => $tramite->id_modalidad,
+                'modalidad' => $tramite->modalidad?->nombre,
+                'estado_actual' => $tramite->estado_actual,
+                'created_at' => $tramite->created_at,
+            ])
+            ->all();
+
+        $conModalidad = (int) $this->titulacionesNuevas()->distinct()->count('tramites.id_estudiante');
+
         return [
             'modalidades' => $porModalidad,
             'estudiantes' => [
@@ -253,6 +286,8 @@ class KardexService
                 'con_tramite' => (int) Tramite::query()->distinct()->count('id_estudiante'),
                 'pendientes_credenciales' => (int) Estudiante::query()->doesntHave('user')->count(),
                 'pendientes' => $pendientesCredenciales,
+                'con_modalidad' => $conModalidad,
+                'titulaciones' => $titulaciones,
             ],
             'tutores' => [
                 'total' => (int) User::query()->where('rol', Roles::DOCENTE)->count(),
@@ -532,6 +567,19 @@ class KardexService
             'por_mes' => $porMes,
             'listado' => $listado,
         ];
+    }
+
+    /**
+     * Solicitudes nuevas de titulación con modalidad activa.
+     *
+     * Solo `solicitud_presentada`: en cuanto el trámite avanza a cualquier otra
+     * fase, KARDEX ya continuó con el proceso y sale de la alerta del panel.
+     */
+    private function titulacionesNuevas(): Builder
+    {
+        return Tramite::query()
+            ->whereHas('modalidad', fn (Builder $q) => $q->where('activo', true))
+            ->where('estado_actual', 'solicitud_presentada');
     }
 
     /**

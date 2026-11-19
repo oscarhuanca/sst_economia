@@ -16,8 +16,8 @@ use Tests\TestCase;
 
 /**
  * Verificación de títulos en el MÓDULO 1 del flujo de titulación (Perfil de
- * Tesis): el estudiante presenta su título, KARDEX lo aprueba o lo rechaza, y
- * tras el rechazo el estudiante debe presentar un título diferente.
+ * Tesis): KARDEX verifica la documentación y remite al HCC, que aprueba el
+ * tema y designa al tutor. Se conservan los casos heredados de rechazo.
  */
 class TesisVerificacionTituloTest extends TestCase
 {
@@ -142,7 +142,7 @@ class TesisVerificacionTituloTest extends TestCase
         $this->assertStringContainsString('El título repite un trabajo ya registrado.', (string) $notificacion->mensaje);
     }
 
-    public function test_kardex_no_puede_aprobar_un_perfil_con_titulo_duplicado(): void
+    public function test_kardex_no_puede_remitir_un_perfil_con_titulo_duplicado(): void
     {
         $this->crearModalidadTesis();
         $this->crearTramiteConTitulo(self::TITULO);
@@ -151,7 +151,7 @@ class TesisVerificacionTituloTest extends TestCase
 
         $this->actingAs($kardex)
             ->postJson("/api/tramites/{$tramite->id_tramite}/flujo/perfil_tesis", [
-                'datos' => $this->datosApruebaPerfil(self::TITULO),
+                'datos' => $this->datosVerificacionPerfil(self::TITULO),
             ])
             ->assertStatus(422)
             ->assertJsonValidationErrors('datos');
@@ -159,7 +159,7 @@ class TesisVerificacionTituloTest extends TestCase
         $this->assertSame('pendiente_concejo_universitario', $tramite->refresh()->estado_actual);
     }
 
-    public function test_kardex_aproba_el_perfil_y_el_titulo_no_se_compara_consigo_mismo(): void
+    public function test_kardex_remite_el_perfil_y_el_titulo_no_se_compara_consigo_mismo(): void
     {
         $this->crearModalidadTesis();
         $tramite = $this->crearTramiteConTitulo(self::TITULO, $this->crearEstudianteConCuenta());
@@ -167,12 +167,12 @@ class TesisVerificacionTituloTest extends TestCase
 
         $this->actingAs($kardex)
             ->postJson("/api/tramites/{$tramite->id_tramite}/flujo/perfil_tesis", [
-                'datos' => $this->datosApruebaPerfil(self::TITULO),
+                'datos' => $this->datosVerificacionPerfil(self::TITULO),
             ])
             ->assertCreated();
 
         $tramite->refresh();
-        $this->assertSame('perfil_aprobado', $tramite->estado_actual);
+        $this->assertSame('pendiente_concejo_universitario', $tramite->estado_actual);
         $this->assertSame(self::TITULO, $tramite->hitos['modulos']['perfil_tesis']['titulo']);
     }
 
@@ -207,6 +207,47 @@ class TesisVerificacionTituloTest extends TestCase
         $this->assertSame($docente->id_docente, $tramite->id_tutor);
         $this->assertSame('resolucion_tutor.pdf', $resolucion['nombre']);
         $this->assertTrue(Storage::disk('public')->exists($resolucion['ruta']));
+    }
+
+    public function test_kardex_remite_al_hcc_y_luego_se_aprueban_el_tema_y_el_tutor(): void
+    {
+        $this->crearModalidadTesis();
+        $tramite = $this->crearTramiteEditable(self::TITULO, $this->crearEstudianteConCuenta());
+        $kardex = $this->crearUsuarioGestion();
+        $docente = Docente::create([
+            'ci' => '7654321',
+            'nombre' => 'Julia',
+            'apellidos' => 'Paredes Villca',
+        ]);
+
+        $this->actingAs($kardex)
+            ->postJson("/api/tramites/{$tramite->id_tramite}/flujo/perfil_tesis", [
+                'datos' => $this->datosVerificacionPerfil(self::TITULO),
+            ])
+            ->assertCreated();
+
+        $this->assertSame('pendiente_concejo_universitario', $tramite->refresh()->estado_actual);
+
+        $this->actingAs($kardex)
+            ->postJson("/api/tramites/{$tramite->id_tramite}/flujo/aprobacion_tema", [
+                'datos' => [
+                    'numero_resolucion' => 'HCC-0103/2026',
+                    'fecha_resolucion' => now()->toDateString(),
+                    'tema_investigacion' => 'Sistemas de riego eficientes en el altiplano',
+                    'tutor_id' => $docente->id_docente,
+                    'requiere_aprobacion_perfil' => true,
+                    'perfil_aprobado' => true,
+                    'titulo_perfil' => self::TITULO,
+                ],
+            ])
+            ->assertCreated();
+
+        $tramite->refresh();
+
+        $this->assertSame('tema_aprobado', $tramite->estado_actual);
+        $this->assertSame($docente->id_docente, $tramite->id_tutor);
+        $this->assertTrue($tramite->hitos['modulos']['perfil_tesis']['perfil_aprobado']);
+        $this->assertSame(self::TITULO, $tramite->hitos['modulos']['perfil_tesis']['titulo']);
     }
 
     public function test_el_tribunal_revisor_exige_confirmar_las_notas_de_suficiencia_y_guarda_sus_pdf_opcionales(): void
@@ -303,12 +344,12 @@ class TesisVerificacionTituloTest extends TestCase
         $this->assertCount(0, $tramite->documentos);
     }
 
-    public function test_kardex_aproba_el_perfil_sin_pdf_adjunto(): void
+    public function test_kardex_remite_el_perfil_sin_pdf_adjunto(): void
     {
         $this->crearModalidadTesis();
         $tramite = $this->crearTramiteConTitulo(self::TITULO, $this->crearEstudianteConCuenta());
         $kardex = $this->crearUsuarioGestion();
-        $datos = $this->datosApruebaPerfil(self::TITULO);
+        $datos = $this->datosVerificacionPerfil(self::TITULO);
 
         // La verificación es obligatoria, pero el PDF adjunto es opcional.
         foreach ($datos['documentos'] as $tipo => $_) {
@@ -321,7 +362,7 @@ class TesisVerificacionTituloTest extends TestCase
             ])
             ->assertCreated();
 
-        $this->assertSame('perfil_aprobado', $tramite->refresh()->estado_actual);
+        $this->assertSame('pendiente_concejo_universitario', $tramite->refresh()->estado_actual);
     }
 
     public function test_la_verificacion_de_kardex_omite_el_tramite_consultado(): void
@@ -418,11 +459,11 @@ class TesisVerificacionTituloTest extends TestCase
     }
 
     /**
-     * Datos con los que KARDEX aprueba el perfil (título y documentos verificados).
+     * Datos con los que KARDEX verifica y remite el perfil (título y documentos verificados).
      *
      * @return array<string, mixed>
      */
-    private function datosApruebaPerfil(string $titulo): array
+    private function datosVerificacionPerfil(string $titulo): array
     {
         $documentos = [];
 
@@ -434,7 +475,7 @@ class TesisVerificacionTituloTest extends TestCase
         }
 
         return [
-            'accion' => 'aprobar',
+            'accion' => 'remitir',
             'titulo' => $titulo,
             'documentos' => $documentos,
             'observaciones' => 'Documentación verificada.',

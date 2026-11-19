@@ -7,7 +7,7 @@
  */
 import routes from './router/kardex.routes';
 
-export { useKardexStore, MODALIDADES_ASIGNABLES } from './stores/kardex';
+export { useKardexStore, MODALIDADES_ASIGNABLES, rutaKardexDeModalidad } from './stores/kardex';
 export { fechaLegible, iniciales } from './utils/formato';
 
 export default {
