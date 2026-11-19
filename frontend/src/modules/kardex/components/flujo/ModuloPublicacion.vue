@@ -4,11 +4,11 @@
     titulo="Publicación"
     :descripcion="`Verifique el ${etiquetaPublicacion.toLowerCase()} (PDF) subido por el estudiante para concluir la publicación.`"
     icono="graduation"
-    :completado="completado"
-    :en-progreso="enProgreso"
-    :bloqueado="bloqueado"
+    :completado="completado && !editando"
+    :en-progreso="enProgreso || editando"
+    :bloqueado="bloqueado && !editando"
   >
-    <div v-if="completado && datos" class="space-y-3">
+    <div v-if="completado && datos && !editando" class="space-y-3">
       <div v-if="datos.archivo?.nombre" class="rounded-xl bg-emerald-500/10 border border-emerald-500/30 px-3.5 py-2.5 flex items-center gap-2">
         <AppIcon name="file-text" :size="15" class="text-emerald-400 shrink-0" />
         <span class="text-sm font-semibold text-emerald-200 truncate">
@@ -21,19 +21,23 @@
       </div>
     </div>
 
-    <div v-else-if="bloqueado">
+    <div v-else-if="bloqueado && !editando">
       <div class="flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-sm text-slate-400">
         <AppIcon name="shield" :size="15" />
-        Complete el módulo anterior para registrar la publicación.
+        Complete el paso anterior para registrar la publicación.
       </div>
     </div>
 
-    <div v-else-if="!enProgreso && !bloqueado" class="rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-sm text-slate-400">
+    <div v-else-if="!enProgreso && !bloqueado && !editando" class="rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-sm text-slate-400">
       <AppIcon name="clock" :size="15" class="inline mr-1.5" />
-      Este módulo se habilitará cuando el estudiante suba su {{ etiquetaPublicacion.toLowerCase() }} tras aprobar la defensa.
+      Este paso se habilitará cuando el estudiante suba su {{ etiquetaPublicacion.toLowerCase() }} tras aprobar la defensa.
     </div>
 
     <div v-else class="space-y-3">
+      <p v-if="editando" class="text-xs font-semibold text-orange-300 flex items-center gap-1.5">
+        <AppIcon name="pencil" :size="14" />
+        Editando información ya registrada.
+      </p>
       <div class="rounded-xl bg-white/5 border border-white/10 p-3.5">
         <p class="text-sm font-semibold text-white">{{ etiquetaPublicacion }} subido por el estudiante</p>
         <div class="mt-2 flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-slate-900/40 px-3.5 py-2.5">
@@ -83,6 +87,7 @@ const props = defineProps({
   completado: { type: Boolean, default: false },
   enProgreso: { type: Boolean, default: false },
   bloqueado: { type: Boolean, default: false },
+  editando: { type: Boolean, default: false },
   datos: { type: Object, default: null },
   cargando: { type: Boolean, default: false },
   tramite: { type: Object, default: null },

@@ -4,11 +4,11 @@
     titulo="Defensa"
     descripcion="Registre la defensa en tres pasos: entrega de empastados y CD, Resolución y fecha, y nota final."
     icono="award"
-    :completado="completado"
-    :en-progreso="enProgreso"
-    :bloqueado="bloqueado"
+    :completado="completado && !editando"
+    :en-progreso="enProgreso || editando"
+    :bloqueado="bloqueado && !editando"
   >
-    <div v-if="completado && datos" class="space-y-3">
+    <div v-if="completado && datos && !editando" class="space-y-3">
       <dl class="grid sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
         <div class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
           <dt class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Empastados y CD</dt>
@@ -58,15 +58,19 @@
       </div>
     </div>
 
-    <div v-else-if="bloqueado">
+    <div v-else-if="bloqueado && !editando">
       <div class="flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-sm text-slate-400">
         <AppIcon name="shield" :size="15" />
-        Complete el módulo anterior para registrar la defensa.
+        Complete el paso anterior para registrar la defensa.
       </div>
     </div>
 
     <!-- La defensa se registra en TRES pasos consecutivos. -->
     <form v-else @submit.prevent="guardarPasoActual" class="space-y-5">
+      <p v-if="editando" class="text-xs font-semibold text-orange-300 flex items-center gap-1.5">
+        <AppIcon name="pencil" :size="14" />
+        Editando información y documentos ya registrados.
+      </p>
       <div class="grid sm:grid-cols-3 gap-3">
         <button
           type="button"
@@ -288,6 +292,7 @@ const props = defineProps({
   completado: { type: Boolean, default: false },
   enProgreso: { type: Boolean, default: false },
   bloqueado: { type: Boolean, default: false },
+  editando: { type: Boolean, default: false },
   datos: { type: Object, default: null },
   cargando: { type: Boolean, default: false },
 });
@@ -393,6 +398,20 @@ watch(paso2Completado, (completado) => {
     paso.value = '2';
   }
 });
+
+watch(
+  () => props.editando,
+  (activo) => {
+    if (activo && props.datos) {
+      form.numero_resolucion = props.datos.numero_resolucion || '';
+      form.fecha_defensa = props.datos.fecha_defensa || '';
+      form.nota_final = props.datos.nota_final ?? '';
+      empastadosEntregados.value = confirmado(props.datos.empastados_cd_entregados);
+      paso.value = '3';
+    }
+  },
+  { immediate: true },
+);
 
 function obtenerDatos() {
   const base = { empastados_cd_entregados: empastadosEntregados.value };

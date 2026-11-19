@@ -4,11 +4,11 @@
     titulo="Tribunal Revisor"
     descripcion="Verifique la Nota de Suficiencia del tutor, la Resolución de designación del tribunal revisor y registre los datos de la Resolución del HCC."
     icono="users"
-    :completado="completado"
-    :en-progreso="enProgreso"
-    :bloqueado="bloqueado"
+    :completado="completado && !editando"
+    :en-progreso="enProgreso || editando"
+    :bloqueado="bloqueado && !editando"
   >
-    <div v-if="completado && datos" class="space-y-3">
+    <div v-if="completado && datos && !editando" class="space-y-3">
       <dl class="grid sm:grid-cols-2 gap-2.5">
         <div class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
           <dt class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">N.º Resolución HCC</dt>
@@ -98,7 +98,7 @@
           class="rounded-xl bg-emerald-500/10 border border-emerald-500/30 px-3.5 py-2.5 space-y-2"
         >
           <div class="flex items-center justify-between gap-3">
-            <span class="text-[11px] uppercase tracking-wide text-emerald-300 font-bold">{{ miembro.rol }}</span>
+            <span class="text-[11px] uppercase tracking-wide text-emerald-300 font-bold">{{ etiquetaRol(miembro.rol) }}</span>
             <span class="text-sm font-semibold text-emerald-100">{{ miembro.nombre }}</span>
           </div>
           <div class="flex flex-wrap items-center justify-between gap-2">
@@ -129,14 +129,18 @@
       </div>
     </div>
 
-    <div v-else-if="bloqueado">
+    <div v-else-if="bloqueado && !editando">
       <div class="flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-sm text-slate-400">
         <AppIcon name="shield" :size="15" />
-        Complete el módulo anterior para designar el tribunal revisor.
+        Complete el paso anterior para designar el tribunal revisor.
       </div>
     </div>
 
     <form v-else @submit.prevent="enviar" class="space-y-5">
+      <p v-if="editando" class="text-xs font-semibold text-orange-300 flex items-center gap-1.5">
+        <AppIcon name="pencil" :size="14" />
+        Editando información y documentos ya registrados.
+      </p>
       <div class="grid sm:grid-cols-3 gap-3">
         <button
           type="button"
@@ -370,9 +374,30 @@
             >
               <div class="flex items-center gap-3">
                 <span class="w-24 shrink-0 text-[11px] uppercase tracking-wider font-bold text-orange-300">
-                  {{ miembro.rol }}
+                  {{ etiquetaRol(miembro.rol) }}
                 </span>
+                <select
+                  v-if="esTesis"
+                  v-model="miembro.nombre"
+                  class="input flex-1"
+                >
+                  <option value="" disabled>Seleccione un docente...</option>
+                  <option
+                    v-if="miembro.nombre && !docentes.some((d) => nombreCompletoDocente(d) === miembro.nombre)"
+                    :value="miembro.nombre"
+                  >
+                    {{ miembro.nombre }}
+                  </option>
+                  <option
+                    v-for="doc in docentes"
+                    :key="doc.id_docente ?? doc.id ?? nombreCompletoDocente(doc)"
+                    :value="nombreCompletoDocente(doc)"
+                  >
+                    {{ nombreCompletoDocente(doc) }}
+                  </option>
+                </select>
                 <input
+                  v-else
                   v-model="miembro.nombre"
                   type="text"
                   class="input flex-1"
@@ -462,8 +487,11 @@ const props = defineProps({
   completado: { type: Boolean, default: false },
   enProgreso: { type: Boolean, default: false },
   bloqueado: { type: Boolean, default: false },
+  editando: { type: Boolean, default: false },
   datos: { type: Object, default: null },
   tutor: { type: Object, default: null },
+  docentes: { type: Array, default: () => [] },
+  config: { type: Object, default: null },
   cargando: { type: Boolean, default: false },
 });
 
@@ -471,6 +499,23 @@ const emit = defineEmits(['guardar']);
 
 function confirmado(valor) {
   return valor === true || valor === 1 || valor === '1';
+}
+
+const esTesis = computed(() => props.config?.nombre === 'Tesis de Grado');
+
+const ETIQUETAS_TRIBUNAL_TESIS = {
+  presidente: 'Tribunal 1',
+  vocal: 'Tribunal 2',
+  secretario: 'Tribunal 3',
+};
+
+function etiquetaRol(rol) {
+  if (esTesis.value && ETIQUETAS_TRIBUNAL_TESIS[rol]) return ETIQUETAS_TRIBUNAL_TESIS[rol];
+  return rol ? rol.charAt(0).toUpperCase() + rol.slice(1) : '';
+}
+
+function nombreCompletoDocente(doc) {
+  return [doc?.nombres || doc?.nombre, doc?.apellidos].filter(Boolean).join(' ').trim();
 }
 
 const form = reactive({
@@ -568,6 +613,26 @@ watch(resolucionTribunalEntregada, (confirmada) => {
     paso.value = '2';
   }
 });
+
+watch(
+  () => props.editando,
+  (activo) => {
+    if (activo && props.datos) {
+      form.numero_resolucion = props.datos.numero_resolucion || '';
+      form.fecha_resolucion = props.datos.fecha_resolucion || '';
+      ROLES_TRIBUNAL.forEach((rol, idx) => {
+        const previo = props.datos.tribunal?.find((t) => t.rol === rol);
+        form.tribunal[idx].nombre = previo?.nombre || '';
+        form.tribunal[idx].nota_suficiencia = previo?.nota_suficiencia || null;
+        form.tribunal[idx].nota_suficiencia_entregada = confirmado(previo?.nota_suficiencia_entregada);
+      });
+      tutorEntregada.value = confirmado(props.datos.nota_suficiencia_tutor_entregada);
+      resolucionTribunalEntregada.value = confirmado(props.datos.resolucion_tribunal_entregada);
+      paso.value = '3';
+    }
+  },
+  { immediate: true },
+);
 
 function esPdf(file) {
   return file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');

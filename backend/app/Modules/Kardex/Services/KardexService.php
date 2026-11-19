@@ -106,15 +106,54 @@ class KardexService
         $this->asegurarModalidadDisponible($estudiante, $idModalidad);
 
         [$credenciales, $usuario] = DB::transaction(function () use ($estudiante) {
-            if ($estudiante->user !== null) {
+            $usuario = $estudiante->user;
+
+            if ($usuario !== null) {
+                $usuario->setRelation('estudiante', $estudiante);
+
                 return [
                     [
                         'generadas' => false,
                         'ya_existia' => true,
-                        'username' => $estudiante->user->username,
+                        'username' => $usuario->username,
                         'password' => null,
                     ],
-                    $estudiante->user,
+                    $usuario,
+                ];
+            }
+
+            // El estudiante puede tener una cuenta/registro previo con el mismo CI
+            // aún no vinculada a su perfil: se vincula al trámite actual en lugar
+            // de rechazar la operación.
+            $existente = User::query()->where('ci', $estudiante->ci)->first();
+            if ($existente !== null) {
+                if ($existente->estudiante_id !== null
+                    && (int) $existente->estudiante_id !== (int) $estudiante->id_estudiante) {
+                    throw ValidationException::withMessages([
+                        'identificador' => 'El CI ya está asociado a otra cuenta de estudiante.',
+                    ]);
+                }
+                if ($existente->rol !== Roles::ESTUDIANTE) {
+                    throw ValidationException::withMessages([
+                        'identificador' => 'El CI ya está registrado con otro rol de usuario.',
+                    ]);
+                }
+
+                if ($existente->estudiante_id === null) {
+                    $existente->forceFill(['estudiante_id' => $estudiante->id_estudiante])->save();
+                }
+
+                $usuario = $existente->fresh() ?? $existente;
+                $usuario->setRelation('estudiante', $estudiante);
+
+                return [
+                    [
+                        'generadas' => false,
+                        'ya_existia' => true,
+                        'username' => $usuario->username,
+                        'password' => null,
+                    ],
+                    $usuario,
                 ];
             }
 

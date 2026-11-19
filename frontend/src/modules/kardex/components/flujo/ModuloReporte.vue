@@ -30,7 +30,7 @@
     <div v-else-if="bloqueado">
       <div class="flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-sm text-slate-400">
         <AppIcon name="shield" :size="15" />
-        Complete el módulo anterior para generar el reporte.
+        Complete el paso anterior para generar el reporte.
       </div>
     </div>
 
@@ -60,7 +60,7 @@
       <div class="flex flex-wrap items-center justify-between gap-3 mt-4">
         <p class="text-xs text-slate-400 inline-flex items-center gap-1.5">
           <AppIcon name="zap" :size="14" />
-          Este módulo se genera automáticamente. El PDF se puede descargar cuando se necesite.
+          Este paso se genera automáticamente. El PDF se puede descargar cuando se necesite.
         </p>
         <div class="flex flex-wrap items-center gap-2">
           <button class="btn-ghost !py-2.5 px-5" :disabled="cargando || generando" @click="visualizar">
@@ -309,18 +309,18 @@ const etapasProceso = computed(() => {
 
   documentosPerfil.value.forEach((doc) => {
     const item = perfilDatos.value.documentos?.[doc.tipo] || {};
-    etapas.push({
-      etapa: doc.etiqueta,
-      subetapa: `Módulo 1 — ${config.value?.etiquetaPerfil || 'Perfil'}`,
-      estado: item.marcado ? 'COMPLETADO' : 'PENDIENTE',
-      fecha: item.fecha ? fechaLegible(item.fecha) : '—',
-      detalle: item.archivo?.nombre || '—',
-    });
+      etapas.push({
+        etapa: doc.etiqueta,
+        subetapa: `1. ${config.value?.etiquetaPerfil || 'Perfil'}`,
+        estado: item.marcado ? 'COMPLETADO' : 'PENDIENTE',
+        fecha: item.fecha ? fechaLegible(item.fecha) : '—',
+        detalle: item.archivo?.nombre || '—',
+      });
   });
 
   etapas.push({
     etapa: `Aprobación del tema de ${tituloGenerico.value}`,
-    subetapa: 'Módulo 2 — Aprobación del Tema',
+    subetapa: '2. Aprobación del Tema',
     estado: aprobacionTema.value.completado ? 'COMPLETADO' : 'PENDIENTE',
     fecha: fechaLegible(aprobacionTema.value.fecha_resolucion) || '—',
     detalle: aprobacionTema.value.numero_resolucion
@@ -330,7 +330,7 @@ const etapasProceso = computed(() => {
 
   etapas.push({
     etapa: 'Designación de docente tutor',
-    subetapa: 'Módulo 2 — Aprobación del Tema',
+    subetapa: '2. Aprobación del Tema',
     estado: aprobacionTema.value.tutor_id ? 'COMPLETADO' : 'PENDIENTE',
     fecha: fechaLegible(aprobacionTema.value.fecha_resolucion) || '—',
     detalle: nombreTutor.value,
@@ -339,7 +339,7 @@ const etapasProceso = computed(() => {
   const tribunal = tribunalDatos.value.tribunal || [];
   etapas.push({
     etapa: 'Conformación del tribunal revisor',
-    subetapa: 'Módulo 3 — Tribunal Revisor',
+    subetapa: '3. Tribunal Revisor',
     estado: tribunal.length ? 'COMPLETADO' : 'PENDIENTE',
     fecha: fechaLegible(tribunalDatos.value.fecha_asignacion) || '—',
     detalle: tribunal.length ? tribunal.map((m) => `${m.rol}: ${m.nombre}`).join(' · ') : '—',
@@ -347,7 +347,7 @@ const etapasProceso = computed(() => {
 
   etapas.push({
     etapa: `Defensa de ${tituloGenerico.value}`,
-    subetapa: 'Módulo 4 — Defensa',
+    subetapa: '4. Defensa',
     estado: defensa.value.completado ? 'COMPLETADO' : 'PENDIENTE',
     fecha: fechaLegible(defensa.value.fecha_defensa) || '—',
     detalle:
@@ -362,7 +362,7 @@ const etapasProceso = computed(() => {
 
   etapas.push({
     etapa: 'Resultado de la defensa',
-    subetapa: 'Módulo 4 — Defensa',
+    subetapa: '4. Defensa',
     estado: defensa.value.nota_final != null ? 'COMPLETADO' : 'PENDIENTE',
     fecha: fechaLegible(defensa.value.fecha_defensa) || '—',
     detalle: resultadoDefensa.value,
@@ -370,7 +370,7 @@ const etapasProceso = computed(() => {
 
   etapas.push({
     etapa: 'Generación del reporte final',
-    subetapa: 'Módulo 5 — Reporte',
+    subetapa: '6. Reporte final',
     estado: avance.value >= 100 ? 'COMPLETADO' : 'EN PROCESO',
     fecha: fechaEmision.value,
     detalle: 'Documento consolidado del trámite de titulación',

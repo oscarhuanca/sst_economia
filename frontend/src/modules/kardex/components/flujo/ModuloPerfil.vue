@@ -4,12 +4,12 @@
     :titulo="etiquetaPerfil"
     :descripcion="descripcionModulo"
     icono="file-text"
-    :completado="completado"
-    :en-progreso="enProgreso"
-    :bloqueado="bloqueado"
+    :completado="completado && !editando"
+    :en-progreso="enProgreso || editando"
+    :bloqueado="bloqueado && !editando"
   >
     <!-- Perfil aprobado -->
-    <div v-if="completado && datos">
+    <div v-if="completado && datos && !editando">
       <div v-if="tituloAprobado" class="rounded-xl bg-emerald-500/10 border border-emerald-500/30 px-3.5 py-3">
         <p class="text-[11px] uppercase tracking-wider text-emerald-300/80 font-semibold flex items-center gap-1.5">
           <AppIcon name="file-text" :size="13" />
@@ -39,7 +39,7 @@
     </div>
 
     <!-- Perfil rechazado: el flujo espera la corrección del estudiante -->
-    <div v-else-if="rechazado" class="space-y-3">
+    <div v-else-if="rechazado && !editando" class="space-y-3">
       <div class="rounded-xl bg-red-900/50 border border-red-500/30 px-4 py-3.5">
         <p class="flex items-center gap-2 text-sm font-bold text-red-300">
           <AppIcon name="x-circle" :size="17" />
@@ -71,16 +71,20 @@
       </p>
     </div>
 
-    <!-- Módulo bloqueado -->
-    <div v-else-if="bloqueado">
+    <!-- Paso bloqueado -->
+    <div v-else-if="bloqueado && !editando">
       <div class="flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-sm text-slate-400">
         <AppIcon name="shield" :size="15" />
-        Complete los módulos anteriores para habilitar la revisión del perfil.
+        Complete los pasos anteriores para habilitar la revisión del perfil.
       </div>
     </div>
 
     <!-- Revisión del perfil -->
     <form v-else @submit.prevent="aprobar">
+      <p v-if="editando" class="mb-4 text-xs font-semibold text-orange-300 flex items-center gap-1.5">
+        <AppIcon name="pencil" :size="14" />
+        Editando información y documentos ya registrados.
+      </p>
       <!-- Título presentado por el estudiante: editable para corregir errores
            ortográficos; la corrección se persiste al aprobar el perfil. -->
       <div class="rounded-xl bg-white/5 border border-white/10 p-3.5">
@@ -303,7 +307,7 @@
 </template>
 
 <script setup>
-// Módulo 1 del flujo de titulación: revisión del PERFIL por parte de KARDEX.
+// Paso 1 del flujo de titulaci\u00f3n: revisi\u00f3n del PERFIL por parte de KARDEX.
 //
 // Es genérico: lo usan las modalidades del flujo de titulación por módulos
 // (Tesis de Grado y Trabajo Dirigido). Lo que distingue a una de otra —el
@@ -334,6 +338,7 @@ const props = defineProps({
   completado: { type: Boolean, default: false },
   enProgreso: { type: Boolean, default: false },
   bloqueado: { type: Boolean, default: false },
+  editando: { type: Boolean, default: false },
   datos: { type: Object, default: null },
   cargando: { type: Boolean, default: false },
   tramite: { type: Object, default: null },
@@ -460,30 +465,45 @@ const documentosDelTramite = computed(() => {
   );
 });
 
-/** Carga el título presentado y los documentos adjuntos en el formulario. */
-watch(
-  [tituloPresentado, documentosDelTramite],
-  ([titulo, documentos]) => {
-    // El título llega del estudiante; solo se copia al formulario cuando él
-    // presenta uno nuevo, para no sobrescribir las correcciones de KARDEX.
-    if (titulo && titulo !== ultimoTituloEstudiante.value) {
-      ultimoTituloEstudiante.value = titulo;
-      form.titulo = titulo;
+
+function hidratarFormulario() {
+  const titulo = props.datos?.titulo || tituloPresentado.value || '';
+  if (titulo) {
+    ultimoTituloEstudiante.value = tituloPresentado.value || titulo;
+    form.titulo = titulo;
+  }
+  form.observaciones = props.datos?.observaciones || '';
+
+  const documentos = documentosDelTramite.value;
+  for (const d of documentosPerfil.value) {
+    if (!form.documentos[d.tipo]) {
+      form.documentos[d.tipo] = { marcado: false, archivo: null };
     }
+    const guardado = props.datos?.documentos?.[d.tipo];
+    form.documentos[d.tipo].marcado = Boolean(guardado?.marcado);
+    form.documentos[d.tipo].archivo = guardado?.archivo || documentos[d.tipo] || null;
+  }
+}
 
-    for (const d of documentosPerfil.value) {
-      const previo = documentos[d.tipo];
-      const guardado = props.datos?.documentos?.[d.tipo];
+/** Carga el titulo presentado y los documentos adjuntos en el formulario. */
+watch(
+  [tituloPresentado, documentosDelTramite, () => props.datos],
+  () => {
+    hidratarFormulario();
+  },
+  { immediate: true, deep: true },
+);
 
-      if (!form.documentos[d.tipo].archivo && previo) {
-        form.documentos[d.tipo].archivo = previo;
-      }
-      if (form.documentos[d.tipo].marcado === false && guardado?.marcado) {
-        form.documentos[d.tipo].marcado = true;
-      }
+watch(
+  () => props.editando,
+  (editando) => {
+    if (editando) {
+      errores.value = [];
+      rechazar.value = false;
+      hidratarFormulario();
+      verificarTitulo();
     }
   },
-  { immediate: true },
 );
 
 // Al entrar en revisión —o cuando el estudiante cambia el título que está en

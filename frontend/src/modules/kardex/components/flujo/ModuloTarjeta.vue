@@ -10,7 +10,7 @@
         </div>
         <div class="min-w-0">
           <h4 class="font-bold text-white uppercase flex items-center gap-2">
-            <span class="text-orange-300 text-xs font-extrabold">Módulo {{ numero }}</span>
+            <span class="text-orange-300 text-xs font-extrabold">{{ numero }}.</span>
             {{ titulo }}
           </h4>
           <p class="text-xs text-slate-400 mt-0.5">{{ descripcion }}</p>

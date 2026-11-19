@@ -28,6 +28,8 @@
           :progreso="progreso"
           :modulos="modulos"
           :estado-actual="estadoBadge"
+          :editable="editable"
+          @seleccionar="seleccionarModulo"
         />
       </div>
     </div>
@@ -56,19 +58,20 @@
       </p>
     </div>
 
-    <!-- 6 módulos del flujo -->
+    <!-- Pasos del flujo -->
     <div class="grid lg:grid-cols-2 gap-4">
       <template v-for="(m, i) in modulos" :key="m.id">
         <ModuloPerfil
           v-if="m.id === config?.moduloPerfil"
-          id="modulo-perfil"
+          :id="`modulo-${m.id}`"
           ref="moduloPerfil"
           :config="config"
           :completado="m.completado"
           :en-progreso="m.enProgreso"
           :bloqueado="m.bloqueado"
+          :editando="editandoId === m.id"
           :datos="m.datos"
-          :cargando="i === proximoPendiente && guardando"
+          :cargando="guardandoId === m.id"
           :tramite="tramite"
           :rechazo="rechazoPerfil"
           @guardar="(datos) => guardar(m.id, datos)"
@@ -76,36 +79,45 @@
         />
         <ModuloAprobacionTema
           v-else-if="m.id === 'aprobacion_tema'"
+          :id="`modulo-${m.id}`"
           :completado="m.completado"
           :en-progreso="m.enProgreso"
           :bloqueado="m.bloqueado"
+          :editando="editandoId === m.id"
           :datos="m.datos"
           :docentes="docentes"
-          :cargando="i === proximoPendiente && guardando"
+          :cargando="guardandoId === m.id"
           :titulo-perfil="tituloPerfilTramite"
           @guardar="(datos, archivo) => guardar(m.id, datos, archivo ? { resolucion_tutor: archivo } : {})"
         />
         <ModuloTribunalRevisor
           v-else-if="m.id === 'tribunal_revisor'"
+          :id="`modulo-${m.id}`"
           :completado="m.completado"
           :en-progreso="m.enProgreso"
           :bloqueado="m.bloqueado"
+          :editando="editandoId === m.id"
           :datos="m.datos"
           :tutor="tramite.tutor"
-          :cargando="i === proximoPendiente && guardando"
+          :docentes="docentes"
+          :config="config"
+          :cargando="guardandoId === m.id"
           @guardar="(datos, archivos) => guardar(m.id, datos, archivos)"
         />
         <ModuloDefensa
           v-else-if="m.id === 'defensa'"
+          :id="`modulo-${m.id}`"
           :completado="m.completado"
           :en-progreso="m.enProgreso"
           :bloqueado="m.bloqueado"
+          :editando="editandoId === m.id"
           :datos="m.datos"
-          :cargando="i === proximoPendiente && guardando"
+          :cargando="guardandoId === m.id"
           @guardar="(datos) => guardar(m.id, datos)"
         />
         <ModuloReporte
           v-else-if="m.id === 'reporte'"
+          :id="`modulo-${m.id}`"
           :completado="m.completado"
           :en-progreso="m.enProgreso"
           :bloqueado="m.bloqueado"
@@ -113,16 +125,18 @@
           :tramite="tramite"
           :docentes="docentes"
           :simulado="kardexStore.simulado"
-          :cargando="i === proximoPendiente && guardando"
+          :cargando="guardandoId === m.id"
           @guardar="(datos) => guardar(m.id, datos)"
         />
         <ModuloPublicacion
           v-else
+          :id="`modulo-${m.id}`"
           :completado="m.completado"
           :en-progreso="m.enProgreso"
           :bloqueado="m.bloqueado"
+          :editando="editandoId === m.id"
           :datos="m.datos"
-          :cargando="i === proximoPendiente && guardando"
+          :cargando="guardandoId === m.id"
           :tramite="tramite"
           :simulado="kardexStore.simulado"
           @guardar="(datos) => guardar(m.id, datos)"
@@ -174,6 +188,8 @@ const kardexStore = useKardexStore();
 const toastStore = useToastStore();
 
 const guardando = ref(false);
+const guardandoId = ref(null);
+const editandoId = ref(null);
 const moduloPerfil = ref(null);
 const actaReprobacion = ref(null);
 
@@ -211,6 +227,16 @@ const fechaInicio = computed(() =>
   fechaLegible(props.tramite?.hitos?.solicitud_presentada || props.tramite?.created_at),
 );
 
+const editable = computed(() => config.value?.nombre === 'Tesis de Grado');
+
+function seleccionarModulo(moduloId) {
+  if (!editable.value) return;
+  editandoId.value = editandoId.value === moduloId ? null : moduloId;
+  requestAnimationFrame(() => {
+    document.getElementById(`modulo-${moduloId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+}
+
 async function guardar(moduloId, datos, archivos = {}) {
   const modulo = modulosDe(config.value).find((m) => m.id === moduloId);
   const res = validarModulo(moduloId, datos, config.value?.nombre);
@@ -219,11 +245,11 @@ async function guardar(moduloId, datos, archivos = {}) {
     return;
   }
   guardando.value = true;
+  guardandoId.value = moduloId;
   const actualizado = await kardexStore.guardarModuloFlujo(moduloId, datos, archivos);
   guardando.value = false;
+  guardandoId.value = null;
   if (actualizado) {
-    // Defensa con nota insuficiente: el trámite queda REPROBADO, el flujo
-    // termina y se genera el acta en PDF para documentación.
     if (moduloId === 'defensa' && defensaReprobada(datos)) {
       toastStore.warning(
         `Defensa REPROBADA con ${datos.nota_final} puntos (mínimo ${NOTA_MINIMA_DEFENSA}). `
@@ -239,6 +265,7 @@ async function guardar(moduloId, datos, archivos = {}) {
       } else {
         toastStore.error('No se pudo generar el acta de reprobación PDF.');
       }
+      editandoId.value = null;
       emit('guardado', actualizado);
       return;
     }
@@ -247,11 +274,14 @@ async function guardar(moduloId, datos, archivos = {}) {
         ? 'Resolución y fecha de defensa registradas.'
         : datos.accion === 'rechazar'
           ? 'Perfil rechazado. Se notificó al estudiante para que presente otro perfil.'
-          : `Módulo completado — estado: ${modulo.badge}`,
+          : editandoId.value === moduloId
+            ? `Paso actualizado — ${modulo.badge}`
+            : `Paso completado — ${modulo.badge}`,
     );
+    editandoId.value = null;
     emit('guardado', actualizado);
   } else {
-    toastStore.error(kardexStore.errorMessage || 'No se pudo guardar el módulo.');
+    toastStore.error(kardexStore.errorMessage || 'No se pudo guardar el paso.');
   }
 }
 

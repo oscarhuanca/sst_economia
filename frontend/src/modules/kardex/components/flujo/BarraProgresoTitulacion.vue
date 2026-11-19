@@ -8,12 +8,16 @@
     <ProgressBar :value="progreso" :bar-class="tone.bar" />
 
     <div class="grid grid-cols-3 sm:grid-cols-6 gap-2 mt-3">
-      <div
-        v-for="m in modulos"
+      <button
+        v-for="(m, i) in modulos"
         :key="m.id"
-        class="rounded-xl px-2 py-2 ring-1 flex flex-col items-center gap-1 text-center transition"
-        :class="chipClass(m)"
+        type="button"
+        class="rounded-xl px-2 py-2 ring-1 flex flex-col items-center gap-1 text-center transition focus:outline-none focus:ring-2 focus:ring-orange-400/60"
+        :class="[chipClass(m), editable ? 'cursor-pointer hover:brightness-110' : 'cursor-default']"
+        :disabled="!editable"
+        @click="editable && emit('seleccionar', m.id)"
       >
+        <span class="text-[9px] font-bold text-slate-400/90">{{ i + 1 }}.</span>
         <AppIcon :name="m.icon" :size="16" :class="chipIconClass(m)" />
         <span class="text-[10px] font-bold uppercase leading-tight" :class="chipTextClass(m)">
           {{ m.label }}
@@ -31,7 +35,7 @@
           En curso
         </span>
         <span v-else class="text-[9px] font-bold uppercase tracking-wide text-slate-500">Pendiente</span>
-      </div>
+      </button>
     </div>
   </div>
 </template>
@@ -46,7 +50,10 @@ const props = defineProps({
   progreso: { type: Number, default: 0 },
   modulos: { type: Array, default: () => [] },
   estadoActual: { type: String, default: '' },
+  editable: { type: Boolean, default: false },
 });
+
+const emit = defineEmits(['seleccionar']);
 
 const tone = computed(() => toneEstado(props.estadoActual));
 

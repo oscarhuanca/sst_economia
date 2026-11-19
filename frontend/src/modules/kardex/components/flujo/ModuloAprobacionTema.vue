@@ -4,11 +4,11 @@
     titulo="Aprobación del Tema"
     descripcion="Registre la Resolución del HCC que aprueba el tema y asigne el tutor."
     icono="book"
-    :completado="completado"
-    :en-progreso="enProgreso"
-    :bloqueado="bloqueado"
+    :completado="completado && !editando"
+    :en-progreso="enProgreso || editando"
+    :bloqueado="bloqueado && !editando"
   >
-    <div v-if="completado && datos" class="space-y-3">
+    <div v-if="completado && datos && !editando" class="space-y-3">
       <dl class="grid sm:grid-cols-2 gap-2.5">
         <div class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
           <dt class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">N.º Resolución HCC</dt>
@@ -48,14 +48,18 @@
       </div>
     </div>
 
-    <div v-else-if="bloqueado">
+    <div v-else-if="bloqueado && !editando">
       <div class="flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-sm text-slate-400">
         <AppIcon name="shield" :size="15" />
-        Complete el módulo anterior para registrar la aprobación del tema.
+        Complete el paso anterior para registrar la aprobación del tema.
       </div>
     </div>
 
     <form v-else @submit.prevent="guardar" class="grid sm:grid-cols-2 gap-4">
+      <p v-if="editando" class="sm:col-span-2 text-xs font-semibold text-orange-300 flex items-center gap-1.5">
+        <AppIcon name="pencil" :size="14" />
+        Editando información y documentos ya registrados.
+      </p>
       <div>
         <label class="label" for="tema-resolucion">Número de Resolución del HCC</label>
         <input
@@ -187,6 +191,7 @@ const props = defineProps({
   completado: { type: Boolean, default: false },
   enProgreso: { type: Boolean, default: false },
   bloqueado: { type: Boolean, default: false },
+  editando: { type: Boolean, default: false },
   datos: { type: Object, default: null },
   docentes: { type: Array, default: () => [] },
   cargando: { type: Boolean, default: false },
@@ -276,6 +281,19 @@ watch(
     const limpio = String(titulo || '').trim();
     if (limpio && !form.tema_investigacion.trim()) {
       form.tema_investigacion = limpio;
+    }
+  },
+  { immediate: true },
+);
+
+watch(
+  () => props.editando,
+  (activo) => {
+    if (activo && props.datos) {
+      form.numero_resolucion = props.datos.numero_resolucion || '';
+      form.fecha_resolucion = props.datos.fecha_resolucion || '';
+      form.tema_investigacion = props.datos.tema_investigacion || '';
+      form.tutor_id = props.datos.tutor_id || '';
     }
   },
   { immediate: true },
