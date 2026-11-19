@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { kardexService } from '../services/kardex';
 import { tramitesService } from '@/modules/tramites/services/tramites';
-import { MODALIDADES_MOCK, buscarMock, consultarMock, asignarMock, transicionarMock, asignarTutorMock, resumenMock, aplicarModuloMock, verificarTituloMock, guardarModuloExamenMock, guardarModuloExcelenciaMock, reabrirExamenMock } from '../mock/data';
+import { MODALIDADES_MOCK, buscarMock, consultarMock, generarCredencialesMock, asignarMock, transicionarMock, asignarTutorMock, resumenMock, aplicarModuloMock, verificarTituloMock, guardarModuloExamenMock, guardarModuloExcelenciaMock, reabrirExamenMock } from '../mock/data';
 
 // Modalidades que el KARDEX puede asignar a un postulante.
 export const MODALIDADES_ASIGNABLES = ['Tesis de Grado', 'Trabajo Dirigido', 'Examen de Grado', 'Excelencia Académica'];
@@ -9,8 +9,9 @@ export const MODALIDADES_ASIGNABLES = ['Tesis de Grado', 'Trabajo Dirigido', 'Ex
 /**
  * Store del Dashboard de KARDEX.
  *
- * Centraliza la búsqueda de postulantes por CI/RU, la asignación de modalidad
- * con generación de credenciales y la consulta del flujo. Cuando la API no
+ * Centraliza la búsqueda de postulantes por CI/RU, el registro en dos etapas
+ * (generación de credenciales y verificación + asignación de modalidad) y la
+ * consulta del flujo. Cuando la API no
  * responde (backend apagado o error de servidor) conmuta a "modo simulado"
  * usando datos de demostración para que el dashboard sea demostrable.
  */
@@ -130,8 +131,42 @@ export const useKardexStore = defineStore('kardex', {
             }
         },
         /**
-         * Asigna la modalidad de titulación al postulante y genera (o recupera)
-         * sus credenciales de acceso.
+         * Etapa 1 del registro: genera (o recupera) las credenciales de acceso
+         * del postulante, sin iniciar ningún trámite.
+         *
+         * @param {string} identificador CI o R.U.
+         * @returns {Promise<Object|null>} Respuesta `{ postulante, credenciales }`.
+         */
+        async generarCredenciales(identificador) {
+            this.cargando = true;
+            this.errorMessage = null;
+            try {
+                const { data } = await kardexService.generarCredenciales(identificador);
+                this.simulado = false;
+                this.postulante = data.postulante;
+                this.credenciales = data.credenciales;
+                delete this._ts.resumen;
+                return data;
+            } catch (error) {
+                if (this._manejarError(error) === null && this.simulado) {
+                    const resultado = generarCredencialesMock(identificador);
+                    if (resultado) {
+                        this.postulante = resultado.postulante;
+                        this.credenciales = resultado.credenciales;
+                        delete this._ts.resumen;
+                        return resultado;
+                    }
+                    this.errorMessage = 'No se encontró un postulante con ese CI o registro universitario.';
+                    return null;
+                }
+                return null;
+            } finally {
+                this.cargando = false;
+            }
+        },
+        /**
+         * Etapa 2 del registro: verifica la cuenta del postulante, asigna la
+         * modalidad de titulación e inicia el trámite. Exige credenciales previas.
          *
          * @returns {Promise<Object|null>} Respuesta `{ postulante, credenciales, tramite }`.
          */
@@ -302,6 +337,10 @@ export const useKardexStore = defineStore('kardex', {
                 if (this.simulado) {
                     const metadatos = (archivo) => ({ nombre: archivo.name, tamanio: archivo.size });
                     const datosMock = { ...datos };
+
+                    if (archivos.resolucion_tema) {
+                        datosMock.resolucion_tema = metadatos(archivos.resolucion_tema);
+                    }
 
                     if (archivos.resolucion_tutor) {
                         datosMock.resolucion_tutor = metadatos(archivos.resolucion_tutor);

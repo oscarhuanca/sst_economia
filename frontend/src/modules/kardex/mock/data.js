@@ -665,20 +665,37 @@ export function consultarMock(identificador) {
   return { postulante: clonar(p), tramite: p.tramite ? clonar(p.tramite) : null };
 }
 
-// Simula POST /kardex/postulantes/asignar-modalidad.
+// Simula POST /kardex/postulantes/generar-credenciales (etapa 1).
+export function generarCredencialesMock(identificador) {
+  const p = encontrarPostulante(identificador);
+  if (!p) return null;
+
+  const credenciales = p.tiene_cuenta
+    ? { generadas: false, ya_existia: true, username: p.username, password: null }
+    : { generadas: true, ya_existia: false, username: usernameDeMock(p), password: passwordDeMock(p) };
+
+  p.tiene_cuenta = true;
+  p.username = credenciales.username;
+
+  return { postulante: clonar(p), credenciales };
+}
+
+// Simula POST /kardex/postulantes/asignar-modalidad (etapa 2).
 export function asignarMock(identificador, idModalidad) {
   const p = encontrarPostulante(identificador);
   if (!p) return null;
 
   const modalidad = MODALIDADES_MOCK.find((m) => m.id_modalidad === Number(idModalidad));
 
+  if (!p.tiene_cuenta) {
+    throw { message: 'El postulante aún no tiene credenciales. Genere las credenciales en la primera etapa.' };
+  }
+
   if (p.tramite) {
     throw { message: 'El postulante ya tiene un trámite en curso para esta modalidad.' };
   }
 
-  const credenciales = p.tiene_cuenta
-    ? { generadas: false, ya_existia: true, username: p.username, password: null }
-    : { generadas: true, ya_existia: false, username: usernameDeMock(p), password: passwordDeMock(p) };
+  const credenciales = { generadas: false, ya_existia: true, username: p.username, password: null };
 
   const tramite = {
     id_tramite: 900 + p.id_estudiante,
@@ -1363,6 +1380,8 @@ export function resumenMock() {
     .map((p) => p.tramite)
     .filter(Boolean);
 
+  const pendientes = POSTULANTES_MOCK.filter((p) => !p.tiene_cuenta);
+
   const totalPorModalidad = (idModalidad) =>
     tramites.filter((t) => t.id_modalidad === idModalidad);
 
@@ -1384,6 +1403,15 @@ export function resumenMock() {
       total: POSTULANTES_MOCK.length,
       con_cuenta: POSTULANTES_MOCK.filter((p) => p.tiene_cuenta).length,
       con_tramite: tramites.length,
+      pendientes_credenciales: pendientes.length,
+      pendientes: pendientes.slice(0, 20).map((p) => ({
+        id_estudiante: p.id_estudiante,
+        ci: p.ci,
+        nombres: p.nombres,
+        apellidos: p.apellidos,
+        registro_universitario: p.registro_universitario,
+        created_at: new Date().toISOString(),
+      })),
     },
     tutores: {
       total: DOCENTES_MOCK.length,

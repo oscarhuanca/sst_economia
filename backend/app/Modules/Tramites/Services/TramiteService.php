@@ -522,6 +522,14 @@ class TramiteService extends BasePaginadoService
 
         $this->validarDatosModulo($modulo, $datos, $paso, $rechaza, $tramite, $modalidad);
 
+        // Al ingresar la Resolución de aprobación del tema (HCC) en el flujo
+        // Kardex, primero se valida/aprueba el perfil remitido y luego se
+        // registra la aprobación del tema.
+        if ($modulo === 'aprobacion_tema' && $tramite->estado_actual === 'pendiente_concejo_universitario') {
+            $this->aprobarPerfilDesdeAprobacionTema($tramite, $modalidad, $datos, $actor);
+            $tramite->refresh();
+        }
+
         // La defensa se aprueba con la nota mínima reglamentaria; con menos la
         // nota deja el trámite REPROBADO (estado terminal) y el estudiante
         // deberá volver a solicitar la modalidad de graduación.
@@ -567,8 +575,8 @@ class TramiteService extends BasePaginadoService
             }
         }
 
-        // `paso` y `accion` son controles del formulario, no datos del módulo.
-        unset($datos['paso'], $datos['accion']);
+        // Campos de control del formulario (no se guardan como datos del módulo).
+        unset($datos['paso'], $datos['accion'], $datos['perfil_aprobado'], $datos['titulo_perfil'], $datos['requiere_aprobacion_perfil']);
 
         // Los PDFs opcionales del módulo se guardan como documentos del trámite
         // y sus metadatos quedan en `hitos.modulos` para mostrarlos en el flujo.
@@ -626,6 +634,15 @@ class TramiteService extends BasePaginadoService
         array $datos,
         array $adjuntos,
     ): array {
+        if ($modulo === 'aprobacion_tema' && isset($adjuntos['resolucion_tema'])) {
+            $datos['resolucion_tema'] = $this->guardarMetadatosDocumento(
+                $tramite,
+                $actor,
+                $adjuntos['resolucion_tema'],
+                'resolucion_aprobacion_tema',
+            );
+        }
+
         if ($modulo === 'aprobacion_tema' && isset($adjuntos['resolucion_tutor'])) {
             $datos['resolucion_tutor'] = $this->guardarMetadatosDocumento(
                 $tramite,
@@ -700,6 +717,42 @@ class TramiteService extends BasePaginadoService
             'tamanio' => $documento->tamanio_kb,
             'ruta' => $documento->ruta_archivo,
         ];
+    }
+
+    /**
+     * Aprueba el perfil del flujo de titulación al registrar la Resolución de
+     * aprobación del tema (HCC) en el módulo de aprobación de tema.
+     *
+     * @param  array<string, mixed>  $datos
+     */
+    private function aprobarPerfilDesdeAprobacionTema(
+        Tramite $tramite,
+        string $modalidad,
+        array $datos,
+        User $actor,
+    ): void {
+        $numero = trim((string) ($datos['numero_resolucion'] ?? ''));
+        $observacion = 'Perfil aprobado con base en la Resolución de aprobación del tema (HCC)'
+            .($numero !== '' ? " N.º {$numero}" : '').'.';
+
+        $this->stateService->transicionar($tramite, 'perfil_aprobado', $observacion, $actor->id_usuario);
+        $tramite->refresh();
+        event(new EstadoTramiteCambiado($tramite, 'perfil_aprobado', $observacion));
+        $tramite->refresh();
+
+        $moduloPerfil = FlujoTitulacionModalidad::perfilDe($modalidad);
+        $hitos = $tramite->hitos ?? [];
+        $modulos = $hitos['modulos'] ?? [];
+        $titulo = trim((string) ($datos['titulo_perfil'] ?? ($modulos[$moduloPerfil]['titulo'] ?? '')));
+
+        $modulos[$moduloPerfil] = array_replace($modulos[$moduloPerfil] ?? [], array_filter([
+            'titulo' => $titulo !== '' ? $titulo : null,
+            'perfil_aprobado' => true,
+            'aprobado_con_resolucion_tema' => true,
+        ], static fn ($v) => $v !== null));
+
+        $hitos['modulos'] = $modulos;
+        $tramite->update(['hitos' => $hitos]);
     }
 
     /**
@@ -853,6 +906,20 @@ class TramiteService extends BasePaginadoService
                 }
                 if (empty($datos['tutor_id'])) {
                     $errores[] = 'Seleccione el tutor asignado.';
+                }
+
+                // Al registrar la Resolución de aprobación del tema en Kardex se
+                // valida y aprueba también el perfil remitido al HCC.
+                if ($tramite && $tramite->estado_actual === 'pendiente_concejo_universitario') {
+                    if (empty($datos['perfil_aprobado'])) {
+                        $errores[] = 'Debe confirmar la aprobación del perfil según la Resolución del HCC.';
+                    }
+                    $tituloPerfil = trim((string) ($datos['titulo_perfil'] ?? ''));
+                    if ($tituloPerfil === '') {
+                        $errores[] = 'No se encontró el título del perfil a aprobar.';
+                    } elseif ($this->verificacionTitulo->duplicado($tituloPerfil, $tramite->id_tramite, $tramite->id_estudiante) !== null) {
+                        $errores[] = 'El título del perfil ya está registrado en otro trabajo de grado.';
+                    }
                 }
                 break;
 

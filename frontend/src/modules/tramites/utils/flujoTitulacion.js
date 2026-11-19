@@ -287,6 +287,21 @@ export function modulosTitulacion(tramite) {
   const modulos = modulosDe(config);
   const pct = pctTitulacion(tramite);
   const hitos = tramite?.hitos || {};
+  const estado = tramite?.estado_actual;
+
+  // Solicitud remitida al HCC: el perfil aún no se aprueba aquí; su validación
+  // y aprobación se realiza al ingresar la Resolución de aprobación del tema.
+  if (estado === 'pendiente_concejo_universitario') {
+    return modulos.map((m, i) => ({
+      ...m,
+      completado: pct >= m.pct || Boolean(hitos[m.estado]),
+      actual: false,
+      enProgreso: i === 1,
+      bloqueado: i > 1,
+      esperandoHcc: i === 0,
+      datos: datosDeModulo(tramite, m.id),
+    }));
+  }
 
   return modulos.map((m, i) => {
     const previo = modulos[i - 1]?.pct ?? 0;
@@ -309,8 +324,11 @@ export function modulosTitulacion(tramite) {
 export function proximoModuloPendiente(tramite) {
   const config = configDeTramite(tramite);
   if (!config) return -1;
-  const pct = pctTitulacion(tramite);
   if (ESTADOS_ERROR_TITULACION.includes(tramite?.estado_actual)) return -1;
+  if (tramite?.estado_actual === 'pendiente_concejo_universitario') {
+    return modulosDe(config).findIndex((m) => m.id === 'aprobacion_tema');
+  }
+  const pct = pctTitulacion(tramite);
   return modulosDe(config).findIndex((m) => pct < m.pct);
 }
 
@@ -547,6 +565,14 @@ export function validarModulo(moduloId, datos = {}, modalidad = null) {
         errores.push('Ingrese el tema de investigación (mínimo 5 caracteres).');
       }
       if (!val(datos.tutor_id)) errores.push('Seleccione el tutor asignado.');
+      if (datos.requiere_aprobacion_perfil) {
+        if (!datos.perfil_aprobado) {
+          errores.push('Debe confirmar la aprobación del perfil según la Resolución del HCC.');
+        }
+        if (!val(datos.titulo_perfil)) {
+          errores.push('No se encontró el título del perfil a aprobar.');
+        }
+      }
       break;
     case 'tribunal_revisor':
       if (!datos.nota_suficiencia_tutor_entregada) {

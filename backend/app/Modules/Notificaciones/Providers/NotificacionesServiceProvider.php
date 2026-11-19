@@ -2,8 +2,10 @@
 
 namespace App\Modules\Notificaciones\Providers;
 
+use App\Modules\Estudiantes\Events\EstudianteRegistrado;
 use App\Modules\Notificaciones\Listeners\NotificarEstadoCambiado;
 use App\Modules\Notificaciones\Listeners\NotificarFechaDefensaSolicitada;
+use App\Modules\Notificaciones\Listeners\NotificarNuevoRegistroEstudiante;
 use App\Modules\Notificaciones\Listeners\NotificarTramiteCreado;
 use App\Modules\Notificaciones\Listeners\NotificarTramiteRevisado;
 use App\Modules\Tramites\Events\EstadoTramiteCambiado;
@@ -28,5 +30,6 @@ class NotificacionesServiceProvider extends ServiceProvider
         Event::listen(TramiteRevisado::class, NotificarTramiteRevisado::class);
         Event::listen(EstadoTramiteCambiado::class, NotificarEstadoCambiado::class);
         Event::listen(FechaDefensaSolicitada::class, NotificarFechaDefensaSolicitada::class);
+        Event::listen(EstudianteRegistrado::class, NotificarNuevoRegistroEstudiante::class);
     }
 }

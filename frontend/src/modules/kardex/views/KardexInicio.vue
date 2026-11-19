@@ -32,6 +32,43 @@
     </div>
 
     <template v-else>
+      <!-- Alerta de postulantes en espera de credenciales -->
+      <div
+        v-if="pendientes > 0"
+        class="rounded-2xl border border-orange-500/40 bg-orange-500/10 p-4 sm:p-5"
+      >
+        <div class="flex items-start gap-3">
+          <div class="w-10 h-10 shrink-0 rounded-xl bg-orange-500/20 text-orange-300 flex items-center justify-center">
+            <AppIcon name="alert-triangle" :size="22" />
+          </div>
+          <div class="min-w-0 flex-1">
+            <p class="font-bold text-white">
+              {{ pendientes }} {{ pendientes === 1 ? 'postulante está' : 'postulantes están' }} en espera de credenciales
+            </p>
+            <p class="text-sm text-slate-300 mt-0.5">
+              Seleccione un postulante para generar sus credenciales en el módulo de registro.
+            </p>
+            <div v-if="listaPendientes.length" class="flex flex-wrap gap-2 mt-3">
+              <button
+                v-for="p in listaPendientes"
+                :key="p.id_estudiante || p.ci"
+                type="button"
+                class="inline-flex items-center gap-2 rounded-full border border-orange-500/30 bg-primary/60 px-3 py-1.5 text-xs font-semibold text-white hover:border-orange-400 hover:bg-orange-500/20 transition"
+                @click="abrirRegistro(p)"
+              >
+                <AppIcon name="user-plus" :size="13" />
+                {{ p.nombres }} {{ p.apellidos }}
+                <span class="text-slate-400">CI {{ p.ci }}</span>
+              </button>
+            </div>
+          </div>
+          <button class="btn-ghost shrink-0" type="button" @click="irARegistro">
+            <AppIcon name="user-plus" :size="16" />
+            Ir al registro
+          </button>
+        </div>
+      </div>
+
       <!-- KPIs principales protegidos con optional chaining -->
       <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Estudiantes" :value="resumen?.estudiantes?.total || 0" sublabel="Postulantes registrados" icon="users" tone="indigo" />
@@ -140,22 +177,54 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { useKardexStore } from '@/modules/kardex';
+import { useToastStore } from '@/core/stores/toast';
 import AppIcon from '@/ui/AppIcon.vue';
 import StatCard from '@/ui/StatCard.vue';
 import EmptyState from '@/ui/EmptyState.vue';
 
 const kardexStore = useKardexStore();
+const router = useRouter();
+const toastStore = useToastStore();
 
 const cargando = ref(true);
 const resumen = computed(() => kardexStore.resumen);
+const pendientes = computed(() => resumen.value?.estudiantes?.pendientes_credenciales || 0);
+const listaPendientes = computed(() =>
+  Array.isArray(resumen.value?.estudiantes?.pendientes) ? resumen.value.estudiantes.pendientes : [],
+);
 
 const porcentaje = (valor, total) => (total > 0 ? Math.round(((valor || 0) / total) * 100) : 0);
+
+/** Abre el módulo de registro en la etapa de generación de credenciales. */
+const abrirRegistro = (postulante) => {
+  router.push({
+    name: 'KardexRegistroPostulante',
+    query: {
+      identificador: postulante.ci || postulante.registro_universitario,
+      etapa: 'credenciales',
+    },
+  });
+};
+
+const irARegistro = () => {
+  router.push({ name: 'KardexRegistroPostulante', query: { etapa: 'credenciales' } });
+};
+
+/** Muestra la alerta visual cuando hay postulantes en espera. */
+const avisarPendientes = () => {
+  if (pendientes.value === 0) return;
+  toastStore.warning(
+    `${pendientes.value} ${pendientes.value === 1 ? 'postulante está' : 'postulantes están'} en espera de credenciales.`,
+  );
+};
 
 onMounted(async () => {
   cargando.value = true;
   try {
     await kardexStore.cargarResumen();
+    avisarPendientes();
   } catch (e) {
     console.error("Error al cargar resumen:", e);
   } finally {
@@ -167,6 +236,7 @@ const recargar = async () => {
   cargando.value = true;
   try {
     await kardexStore.cargarResumen(true);
+    avisarPendientes();
   } finally {
     cargando.value = false;
   }

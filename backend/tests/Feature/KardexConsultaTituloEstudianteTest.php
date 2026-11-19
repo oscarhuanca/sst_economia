@@ -36,7 +36,14 @@ class KardexConsultaTituloEstudianteTest extends TestCase
         $estudiante = Estudiante::factory()->create();
         $kardex = User::factory()->role(Roles::KARDEX)->create();
 
-        // 1. KARDEX asigna la modalidad: crea el trámite (sin título ni PDFs).
+        // 1. KARDEX genera las credenciales y asigna la modalidad: crea el
+        // trámite (sin título ni PDFs).
+        $this->actingAs($kardex)
+            ->postJson('/api/kardex/postulantes/generar-credenciales', [
+                'identificador' => $estudiante->ci,
+            ])
+            ->assertCreated();
+
         $this->actingAs($kardex)
             ->postJson('/api/kardex/postulantes/asignar-modalidad', [
                 'identificador' => $estudiante->ci,
@@ -119,5 +126,53 @@ class KardexConsultaTituloEstudianteTest extends TestCase
         foreach (array_keys(config('tesis.tipos_documento')) as $tipo) {
             $this->assertContains($tipo, $tipos);
         }
+    }
+
+    public function test_kardex_confirma_la_modalidad_y_la_consulta_refleja_el_nuevo_estado(): void
+    {
+        Modalidad::factory()->tesis()->create();
+        $estudiante = Estudiante::factory()->conCuenta()->create();
+        $kardex = User::factory()->role(Roles::KARDEX)->create();
+
+        $documentos = [];
+        foreach (array_keys(config('tesis.tipos_documento')) as $tipo) {
+            $documentos[] = [
+                'archivo' => UploadedFile::fake()->create("{$tipo}.pdf", 100, 'application/pdf'),
+                'tipo' => $tipo,
+            ];
+        }
+
+        $this->actingAs($estudiante->user)
+            ->post('/api/tesis/solicitud', ['titulo' => self::TITULO, 'documentos' => $documentos])
+            ->assertCreated();
+
+        $tramite = $estudiante->tramites()->firstOrFail();
+
+        $datos = [
+            'accion' => 'aprobar',
+            'titulo' => self::TITULO,
+            'documentos' => [],
+            'observaciones' => 'Documentación verificada.',
+        ];
+        foreach (array_keys(config('tesis.tipos_documento')) as $tipo) {
+            $datos['documentos'][$tipo] = [
+                'marcado' => true,
+                'archivo' => ['nombre' => "{$tipo}.pdf", 'tamanio' => 100],
+            ];
+        }
+
+        $this->actingAs($kardex)
+            ->postJson("/api/tramites/{$tramite->id_tramite}/flujo/perfil_tesis", ['datos' => $datos])
+            ->assertCreated();
+
+        $respuesta = $this->actingAs($kardex)
+            ->getJson('/api/kardex/postulantes/consultar?'.http_build_query([
+                'identificador' => $estudiante->ci,
+            ]))
+            ->assertOk()
+            ->json('tramite');
+
+        $this->assertSame('perfil_aprobado', $respuesta['estado_actual'] ?? null);
+        $this->assertSame('Tesis de Grado', $respuesta['modalidad']['nombre'] ?? null);
     }
 }

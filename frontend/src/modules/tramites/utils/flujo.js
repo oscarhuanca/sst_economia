@@ -15,7 +15,7 @@
  */
 export const FASES_FLUJO = [
   { id: 'solicitud', label: 'Solicitud', icon: 'file-text', estados: ['solicitud_presentada'] },
-  { id: 'consejo', label: 'Consejo Universitario', icon: 'shield', estados: ['pendiente_concejo_universitario', 'perfil_aprobado', 'perfil_rechazado'] },
+  { id: 'consejo', label: 'HCC', icon: 'shield', estados: ['pendiente_concejo_universitario', 'perfil_aprobado', 'perfil_rechazado'] },
   { id: 'investigacion', label: 'Investigación', icon: 'book', estados: ['tutor_asignado', 'tema_aprobado', 'investigacion_en_desarrollo', 'documento_final_presentado'] },
   { id: 'revision', label: 'Tribunal Revisor', icon: 'eye', estados: ['comision_revisora', 'tribunal_asignado', 'suficiente', 'insuficiente'] },
   { id: 'defensa', label: 'Defensa', icon: 'award', estados: ['solicitud_fecha_defensa', 'defensa_programada', 'defensa_en_curso', 'defensa_aprobada', 'correcciones_90_dias', 'aprobado', 'reprobado'] },
@@ -41,11 +41,11 @@ export const ESTADOS_SOLICITAR_DEFENSA = ['suficiente', 'correcciones_90_dias', 
 export function crearDescripciones(titulo, perfil) {
   return {
     solicitud_presentada: 'Tu solicitud fue presentada. Espera la verificación de la documentación.',
-    pendiente_concejo_universitario: 'Tu solicitud está pendiente de la evaluación del Consejo Universitario.',
-    perfil_aprobado: `El Consejo Universitario aprobó tu ${perfil}. Se asignará un tutor.`,
-    perfil_rechazado: 'El Consejo Universitario rechazó tu perfil. Corrígelo y reenvíalo.',
+    pendiente_concejo_universitario: 'Tu solicitud fue remitida al HCC y está pendiente de evaluación.',
+    perfil_aprobado: `El HCC aprobó tu ${perfil}. Se asignará un tutor.`,
+    perfil_rechazado: 'El HCC observó/rechazó tu perfil. Corrígelo y reenvíalo.',
     tutor_asignado: 'Se te asignó un tutor. Tu investigación está por comenzar.',
-    tema_aprobado: 'El Consejo Universitario aprobó tu tema y se te asignó un tutor. Continúa con el desarrollo de tu investigación.',
+    tema_aprobado: 'El HCC aprobó tu tema y se te asignó un tutor. Continúa con el desarrollo de tu investigación.',
     investigacion_en_desarrollo: 'Periodo de investigación y desarrollo del documento final dentro del plazo establecido.',
     documento_final_presentado: 'Presentaste el documento final. Pasa a la revisión del Tribunal Revisor.',
     comision_revisora: 'El Tribunal Revisor está evaluando tu documento final.',

@@ -4,6 +4,7 @@ namespace App\Modules\Estudiantes\Services;
 
 use App\Models\Estudiante;
 use App\Models\User;
+use App\Modules\Estudiantes\Events\EstudianteRegistrado;
 use App\Support\BasePaginadoService;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -68,7 +69,11 @@ class EstudianteService extends BasePaginadoService
      */
     public function crear(array $datos): Estudiante
     {
-        return Estudiante::create($datos);
+        $estudiante = Estudiante::create($datos);
+
+        event(new EstudianteRegistrado($estudiante));
+
+        return $estudiante;
     }
 
     /**

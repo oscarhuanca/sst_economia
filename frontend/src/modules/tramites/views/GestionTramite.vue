@@ -192,7 +192,7 @@
             </span>
             Validación de Solicitud de Tesis
           </h3>
-          <p class="text-sm text-slate-400 mb-4">Verifica los 3 documentos obligatorios. Aprobar envía la solicitud al Consejo Universitario.</p>
+          <p class="text-sm text-slate-400 mb-4">Verifique los 3 documentos obligatorios. Aprobar acusa recibo y remite la solicitud al HCC.</p>
           <ul class="space-y-2 mb-4">
             <li v-for="doc in tramite.documentos" :key="doc.id_documento"
                 class="flex items-center gap-2.5 text-sm">
@@ -207,7 +207,7 @@
           <div class="flex gap-2">
             <button class="btn-primary flex-1" @click="revisar('aprobar')">
               <AppIcon name="check" :size="15" />
-              Aprobar y Enviar al Consejo
+              Acusar recibido y remitir al HCC
             </button>
             <button class="btn-rose flex-1" @click="revisar('rechazar')">
               <AppIcon name="x" :size="15" />

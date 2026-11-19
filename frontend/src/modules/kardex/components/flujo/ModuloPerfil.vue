@@ -71,6 +71,24 @@
       </p>
     </div>
 
+    <!-- Remitido al HCC: la aprobación del perfil se valida con la Resolución del tema -->
+    <div v-else-if="esperandoHcc && !editando" class="space-y-3">
+      <div class="flex items-start gap-3 rounded-xl bg-orange-500/10 border border-orange-500/30 px-4 py-3.5 text-sm text-orange-100">
+        <AppIcon name="info" :size="18" class="shrink-0 mt-0.5 text-orange-300" />
+        <div>
+          <p class="font-semibold text-orange-200">Documentación remitida al HCC — perfil pendiente de aprobación</p>
+          <p class="mt-1 text-orange-100/90">
+            La validación y aprobación del perfil se realizará al ingresar la
+            <strong>Resolución de aprobación del tema</strong> del HCC (siguiente paso).
+          </p>
+        </div>
+      </div>
+      <div v-if="tituloPresentado" class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-3">
+        <p class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">{{ tituloLabel }} presentado</p>
+        <p class="mt-1 text-sm font-semibold text-white">{{ tituloPresentado }}</p>
+      </div>
+    </div>
+
     <!-- Paso bloqueado -->
     <div v-else-if="bloqueado && !editando">
       <div class="flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-sm text-slate-400">
@@ -408,6 +426,7 @@ watch(documentosPerfil, (docs) => {
 // true mientras el trámite está en `perfil_rechazado`: el módulo solo informa
 // al estudiante y espera a que vuelva a presentar su perfil.
 const rechazado = computed(() => props.tramite?.estado_actual === 'perfil_rechazado');
+const esperandoHcc = computed(() => props.tramite?.estado_actual === 'pendiente_concejo_universitario');
 
 // Título que el estudiante presentó con el perfil (o el confirmado en el tema).
 const tituloPresentado = computed(() => tituloPerfil(props.tramite));

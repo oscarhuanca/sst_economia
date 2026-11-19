@@ -64,6 +64,25 @@ class KardexResumenTest extends TestCase
         $this->assertSame(0, $modalidad['en_curso']);
     }
 
+    public function test_el_resumen_cuenta_y_lista_los_postulantes_sin_credenciales(): void
+    {
+        $sinCuenta = Estudiante::factory()->create([
+            'nombres' => 'Pendiente',
+            'apellidos' => 'Sin Cuenta',
+        ]);
+        Estudiante::factory()->conCuenta()->create([
+            'nombres' => 'Verificado',
+            'apellidos' => 'Con Cuenta',
+        ]);
+
+        $estudiantes = $this->consultarResumen()['estudiantes'];
+
+        $this->assertSame(1, $estudiantes['pendientes_credenciales']);
+        $this->assertCount(1, $estudiantes['pendientes']);
+        $this->assertSame($sinCuenta->ci, $estudiantes['pendientes'][0]['ci']);
+        $this->assertSame('Pendiente Sin Cuenta', $estudiantes['pendientes'][0]['nombres'].' '.$estudiantes['pendientes'][0]['apellidos']);
+    }
+
     /**
      * Consulta el resumen autenticado como usuario de gestión.
      *

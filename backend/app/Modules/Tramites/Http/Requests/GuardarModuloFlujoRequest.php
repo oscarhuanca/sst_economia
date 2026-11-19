@@ -24,6 +24,7 @@ class GuardarModuloFlujoRequest extends FormRequest
     {
         return [
             'datos' => ['required', 'array'],
+            'resolucion_tema' => ['nullable', 'file', 'mimes:pdf', 'max:10240'],
             'resolucion_tutor' => ['nullable', 'file', 'mimes:pdf', 'max:10240'],
             'resolucion_tribunal' => ['nullable', 'file', 'mimes:pdf', 'max:10240'],
             'nota_suficiencia_tutor' => ['nullable', 'file', 'mimes:pdf', 'max:10240'],
@@ -41,6 +42,8 @@ class GuardarModuloFlujoRequest extends FormRequest
         return [
             'datos.required' => 'Debe enviar los datos del módulo del flujo.',
             'datos.array' => 'Los datos del módulo deben ser un objeto.',
+            'resolucion_tema.mimes' => 'La Resolución de aprobación del tema debe ser un archivo PDF.',
+            'resolucion_tema.max' => 'La Resolución de aprobación del tema no debe superar los 10 MB.',
             'resolucion_tutor.mimes' => 'La Resolución de designación como tutor debe ser un archivo PDF.',
             'resolucion_tutor.max' => 'La Resolución de designación como tutor no debe superar los 10 MB.',
             'resolucion_tribunal.mimes' => 'La Resolución de designación del tribunal revisor debe ser un archivo PDF.',

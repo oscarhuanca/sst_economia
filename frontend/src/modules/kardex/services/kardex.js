@@ -1,6 +1,11 @@
 import http from '@/core/http/client';
 
 function anexarDatosFormData(formData, valor, prefijo) {
+    if (valor instanceof File || valor instanceof Blob) {
+        formData.append(prefijo, valor);
+        return;
+    }
+
     if (Array.isArray(valor)) {
         valor.forEach((item, indice) => {
             anexarDatosFormData(formData, item, `${prefijo}[${indice}]`);
@@ -24,9 +29,10 @@ function anexarDatosFormData(formData, valor, prefijo) {
  * Servicio del Dashboard de KARDEX.
  *
  * Encapsula los endpoints del módulo backend Kardex: búsqueda de postulantes
- * por CI o registro universitario, asignación de modalidad con generación
- * automática de credenciales y consulta del flujo del postulante. Las vistas y
- * el store del módulo lo usan en lugar de llamar a la API directamente.
+ * por CI o registro universitario, generación de credenciales (etapa 1),
+ * verificación y asignación de modalidad (etapa 2) y consulta del flujo del
+ * postulante. Las vistas y el store del módulo lo usan en lugar de llamar a la
+ * API directamente.
  */
 export const kardexService = {
     /** Lista las modalidades de titulación activas (catálogo compartido). */
@@ -37,7 +43,11 @@ export const kardexService = {
     buscarPostulante(identificador) {
         return http.post('/kardex/postulantes/buscar', { identificador });
     },
-    /** Asigna la modalidad al postulante y genera sus credenciales (una vez). */
+    /** Etapa 1: genera las credenciales sin iniciar ningún trámite. */
+    generarCredenciales(identificador) {
+        return http.post('/kardex/postulantes/generar-credenciales', { identificador });
+    },
+    /** Etapa 2: verifica la cuenta y asigna la modalidad al postulante. */
     asignarModalidad(identificador, idModalidad) {
         return http.post('/kardex/postulantes/asignar-modalidad', {
             identificador,

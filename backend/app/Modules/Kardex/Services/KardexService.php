@@ -20,11 +20,12 @@ use Illuminate\Validation\ValidationException;
 /**
  * Casos de uso del Dashboard de KARDEX.
  *
- * Orquesta la búsqueda de postulantes por CI o registro universitario, la
- * asignación de la modalidad de titulación con generación automática de
- * credenciales (usuario + contraseña temporal, entregadas una única vez) y la
- * consulta del flujo actual del postulante. La autorización por rol se resuelve
- * en las rutas vía el middleware `role`; aquí solo se asume permiso verificado.
+ * Orquesta la búsqueda de postulantes por CI o registro universitario y el
+ * registro en dos etapas: (1) generación de credenciales de acceso (usuario +
+ * contraseña temporal, entregadas una única vez) y (2) verificación de la
+ * cuenta y asignación de la modalidad de titulación. También consulta el flujo
+ * actual del postulante. La autorización por rol se resuelve en las rutas vía
+ * el middleware `role`; aquí solo se asume permiso verificado.
  */
 class KardexService
 {
@@ -63,32 +64,48 @@ class KardexService
     }
 
     /**
-     * Asigna la modalidad de titulación al postulante.
+     * Primera etapa del registro: genera (o recupera) las credenciales de acceso
+     * del postulante sin iniciar ningún trámite.
      *
-     * Crea la cuenta de acceso automáticamente si el postulante aún no tiene
-     * una (usuario + contraseña temporal) y registra el trámite en su estado
-     * inicial. Los pasos se ejecutan en una sola transacción: si falla la
-     * asignación no queda una cuenta huérfana.
+     * @return array{postulante: array<string, mixed>, credenciales: array<string, mixed>}
+     *
+     * @throws ValidationException
+     * @throws \DomainException
+     */
+    public function generarCredenciales(string $identificador): array
+    {
+        $estudiante = $this->estudiantePorIdentificador($identificador);
+
+        [$credenciales] = DB::transaction(fn () => $this->asegurarCredenciales($estudiante));
+
+        return [
+            'postulante' => $this->postulante($estudiante->ci, false),
+            'credenciales' => $credenciales,
+        ];
+    }
+
+    /**
+     * Segunda etapa del registro: verifica que el postulante ya tenga cuenta de
+     * acceso y asigna la modalidad de titulación, registrando el trámite en su
+     * estado inicial. No crea credenciales: si no existen, exige ejecutar antes
+     * la primera etapa.
      *
      * @param  array<string, mixed>  $validated
      * @return array{postulante: array<string, mixed>, credenciales: array<string, mixed>, tramite: array<string, mixed>}
      *
      * @throws ValidationException
-     * @throws \DomainException
      */
-    public function asignarModalidad(array $validated, User $actor): array
+    public function asignarModalidad(array $validated): array
     {
         $identificador = (string) $validated['identificador'];
         $idModalidad = (int) $validated['id_modalidad'];
 
-        $estudiante = Estudiante::query()
-            ->where('ci', $identificador)
-            ->orWhere('registro_universitario', $identificador)
-            ->first();
+        $estudiante = $this->estudiantePorIdentificador($identificador);
+        $usuario = $estudiante->user;
 
-        if ($estudiante === null) {
+        if ($usuario === null) {
             throw ValidationException::withMessages([
-                'identificador' => 'No se encontró un postulante con ese CI o registro universitario.',
+                'identificador' => 'El postulante aún no tiene credenciales. Genere las credenciales en la primera etapa antes de asignar la modalidad.',
             ]);
         }
 
@@ -105,91 +122,6 @@ class KardexService
 
         $this->asegurarModalidadDisponible($estudiante, $idModalidad);
 
-        [$credenciales, $usuario] = DB::transaction(function () use ($estudiante) {
-            $usuario = $estudiante->user;
-
-            if ($usuario !== null) {
-                $usuario->setRelation('estudiante', $estudiante);
-
-                return [
-                    [
-                        'generadas' => false,
-                        'ya_existia' => true,
-                        'username' => $usuario->username,
-                        'password' => null,
-                    ],
-                    $usuario,
-                ];
-            }
-
-            // El estudiante puede tener una cuenta/registro previo con el mismo CI
-            // aún no vinculada a su perfil: se vincula al trámite actual en lugar
-            // de rechazar la operación.
-            $existente = User::query()->where('ci', $estudiante->ci)->first();
-            if ($existente !== null) {
-                if ($existente->estudiante_id !== null
-                    && (int) $existente->estudiante_id !== (int) $estudiante->id_estudiante) {
-                    throw ValidationException::withMessages([
-                        'identificador' => 'El CI ya está asociado a otra cuenta de estudiante.',
-                    ]);
-                }
-                if ($existente->rol !== Roles::ESTUDIANTE) {
-                    throw ValidationException::withMessages([
-                        'identificador' => 'El CI ya está registrado con otro rol de usuario.',
-                    ]);
-                }
-
-                if ($existente->estudiante_id === null) {
-                    $existente->forceFill(['estudiante_id' => $estudiante->id_estudiante])->save();
-                }
-
-                $usuario = $existente->fresh() ?? $existente;
-                $usuario->setRelation('estudiante', $estudiante);
-
-                return [
-                    [
-                        'generadas' => false,
-                        'ya_existia' => true,
-                        'username' => $usuario->username,
-                        'password' => null,
-                    ],
-                    $usuario,
-                ];
-            }
-
-            $username = CredencialesEstudiante::usernameUnico($estudiante);
-            $password = CredencialesEstudiante::passwordDe($estudiante);
-
-            try {
-                $usuario = User::create([
-                    'ci' => $estudiante->ci,
-                    'nombres' => $estudiante->nombres,
-                    'apellidos' => $estudiante->apellidos,
-                    'email' => CredencialesEstudiante::emailDisponible($estudiante),
-                    'telefono' => $estudiante->telefono,
-                    'username' => $username,
-                    'password' => Hash::make($password),
-                    'rol' => Roles::ESTUDIANTE,
-                    'activo' => true,
-                    'estudiante_id' => $estudiante->id_estudiante,
-                ]);
-            } catch (UniqueConstraintViolationException) {
-                throw ValidationException::withMessages([
-                    'identificador' => 'No se pudo crear la cuenta de acceso: el CI o el usuario ya está registrado.',
-                ]);
-            }
-
-            return [
-                [
-                    'generadas' => true,
-                    'ya_existia' => false,
-                    'username' => $username,
-                    'password' => $password,
-                ],
-                $usuario,
-            ];
-        });
-
         $tramite = $this->tramites->crear([
             'id_modalidad' => $idModalidad,
             'documentos' => [],
@@ -197,7 +129,12 @@ class KardexService
 
         return [
             'postulante' => $this->postulante($estudiante->ci, false),
-            'credenciales' => $credenciales,
+            'credenciales' => [
+                'generadas' => false,
+                'ya_existia' => true,
+                'username' => $usuario->username,
+                'password' => null,
+            ],
             'tramite' => $this->tramites->formatear($tramite),
         ];
     }
@@ -251,7 +188,7 @@ class KardexService
      * que cierran ahí. En Examen de Grado `aprobado` todavía espera el reporte,
      * así que no cuenta como finalizado y permanece en curso.
      *
-     * @return array{modalidades: array<int, array<string, mixed>>, estudiantes: array<string, int>, tutores: array<string, int>, totales: array<string, int>}
+     * @return array{modalidades: array<int, array<string, mixed>>, estudiantes: array<string, mixed>, tutores: array<string, int>, totales: array<string, int>}
      */
     public function resumen(): array
     {
@@ -293,12 +230,29 @@ class KardexService
             ->count();
         $fallos = (int) Tramite::query()->whereIn('estado_actual', TramiteStateService::fallos())->count();
 
+        $pendientesCredenciales = Estudiante::query()
+            ->doesntHave('user')
+            ->latest()
+            ->limit(20)
+            ->get(['id_estudiante', 'ci', 'nombres', 'apellidos', 'registro_universitario', 'created_at'])
+            ->map(fn (Estudiante $estudiante) => [
+                'id_estudiante' => $estudiante->id_estudiante,
+                'ci' => $estudiante->ci,
+                'nombres' => $estudiante->nombres,
+                'apellidos' => $estudiante->apellidos,
+                'registro_universitario' => $estudiante->registro_universitario,
+                'created_at' => $estudiante->created_at,
+            ])
+            ->all();
+
         return [
             'modalidades' => $porModalidad,
             'estudiantes' => [
                 'total' => (int) Estudiante::query()->count(),
                 'con_cuenta' => (int) User::query()->where('rol', Roles::ESTUDIANTE)->count(),
                 'con_tramite' => (int) Tramite::query()->distinct()->count('id_estudiante'),
+                'pendientes_credenciales' => (int) Estudiante::query()->doesntHave('user')->count(),
+                'pendientes' => $pendientesCredenciales,
             ],
             'tutores' => [
                 'total' => (int) User::query()->where('rol', Roles::DOCENTE)->count(),
@@ -340,6 +294,118 @@ class KardexService
                 : null,
             'tiene_cuenta' => $estudiante->user !== null,
             'username' => $estudiante->user?->username,
+        ];
+    }
+
+    /**
+     * Resuelve el perfil del postulante a partir de su CI o registro universitario.
+     *
+     * @throws ValidationException
+     */
+    private function estudiantePorIdentificador(string $identificador): Estudiante
+    {
+        $estudiante = Estudiante::query()
+            ->where('ci', $identificador)
+            ->orWhere('registro_universitario', $identificador)
+            ->first();
+
+        if ($estudiante === null) {
+            throw ValidationException::withMessages([
+                'identificador' => 'No se encontró un postulante con ese CI o registro universitario.',
+            ]);
+        }
+
+        return $estudiante;
+    }
+
+    /**
+     * Crea la cuenta de acceso del postulante o recupera una cuenta previa con
+     * el mismo CI que aún no estaba vinculada a su perfil.
+     *
+     * La contraseña en texto plano se devuelve solo cuando la cuenta se crea en
+     * esta operación; nunca se regenera ni se expone para cuentas existentes.
+     *
+     * @return array{0: array<string, mixed>, 1: User}
+     *
+     * @throws ValidationException
+     */
+    private function asegurarCredenciales(Estudiante $estudiante): array
+    {
+        $usuario = $estudiante->user;
+
+        if ($usuario !== null) {
+            return [
+                [
+                    'generadas' => false,
+                    'ya_existia' => true,
+                    'username' => $usuario->username,
+                    'password' => null,
+                ],
+                $usuario,
+            ];
+        }
+
+        $existente = User::query()->where('ci', $estudiante->ci)->first();
+        if ($existente !== null) {
+            if ($existente->estudiante_id !== null
+                && (int) $existente->estudiante_id !== (int) $estudiante->id_estudiante) {
+                throw ValidationException::withMessages([
+                    'identificador' => 'El CI ya está asociado a otra cuenta de estudiante.',
+                ]);
+            }
+            if ($existente->rol !== Roles::ESTUDIANTE) {
+                throw ValidationException::withMessages([
+                    'identificador' => 'El CI ya está registrado con otro rol de usuario.',
+                ]);
+            }
+
+            if ($existente->estudiante_id === null) {
+                $existente->forceFill(['estudiante_id' => $estudiante->id_estudiante])->save();
+            }
+
+            $usuario = $existente->fresh() ?? $existente;
+
+            return [
+                [
+                    'generadas' => false,
+                    'ya_existia' => true,
+                    'username' => $usuario->username,
+                    'password' => null,
+                ],
+                $usuario,
+            ];
+        }
+
+        $username = CredencialesEstudiante::usernameUnico($estudiante);
+        $password = CredencialesEstudiante::passwordDe($estudiante);
+
+        try {
+            $usuario = User::create([
+                'ci' => $estudiante->ci,
+                'nombres' => $estudiante->nombres,
+                'apellidos' => $estudiante->apellidos,
+                'email' => CredencialesEstudiante::emailDisponible($estudiante),
+                'telefono' => $estudiante->telefono,
+                'username' => $username,
+                'password' => Hash::make($password),
+                'rol' => Roles::ESTUDIANTE,
+                'activo' => true,
+                'estudiante_id' => $estudiante->id_estudiante,
+            ]);
+        } catch (UniqueConstraintViolationException) {
+            throw ValidationException::withMessages([
+                'identificador' => 'No se pudo crear la cuenta de acceso: el CI o el usuario ya está registrado.',
+            ]);
+        }
+
+        return [
+            [
+                'generadas' => true,
+                'ya_existia' => false,
+                'username' => $username,
+                'password' => $password,
+            ],
+            $usuario,
         ];
     }
 

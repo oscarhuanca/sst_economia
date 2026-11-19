@@ -88,7 +88,8 @@
           :docentes="docentes"
           :cargando="guardandoId === m.id"
           :titulo-perfil="tituloPerfilTramite"
-          @guardar="(datos, archivo) => guardar(m.id, datos, archivo ? { resolucion_tutor: archivo } : {})"
+          :tramite="tramite"
+          @guardar="(datos, archivos) => guardar(m.id, datos, archivos || {})"
         />
         <ModuloTribunalRevisor
           v-else-if="m.id === 'tribunal_revisor'"
@@ -239,7 +240,10 @@ function seleccionarModulo(moduloId) {
 
 async function guardar(moduloId, datos, archivos = {}) {
   const modulo = modulosDe(config.value).find((m) => m.id === moduloId);
-  const res = validarModulo(moduloId, datos, config.value?.nombre);
+  const datosValidar = (moduloId === 'aprobacion_tema' && props.tramite?.estado_actual === 'pendiente_concejo_universitario')
+    ? { ...datos, requiere_aprobacion_perfil: true }
+    : datos;
+  const res = validarModulo(moduloId, datosValidar, config.value?.nombre);
   if (!res.ok) {
     toastStore.error(res.errores.join(' · '));
     return;

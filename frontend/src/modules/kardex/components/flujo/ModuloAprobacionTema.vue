@@ -2,7 +2,7 @@
   <ModuloTarjeta
     numero="2"
     titulo="Aprobación del Tema"
-    descripcion="Registre la Resolución del HCC que aprueba el tema y asigne el tutor."
+    descripcion="Registre la Resolución del HCC que aprueba el tema, valide la aprobación del perfil y asigne el tutor."
     icono="book"
     :completado="completado && !editando"
     :en-progreso="enProgreso || editando"
@@ -19,6 +19,25 @@
           <dd class="text-sm font-semibold text-white mt-0.5">{{ fechaLegible(datos.fecha_resolucion) }}</dd>
         </div>
       </dl>
+      <div
+        v-if="datos.resolucion_tema?.nombre"
+        class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5 flex items-center justify-between gap-3"
+      >
+        <span class="flex items-center gap-2 text-sm text-slate-200 min-w-0">
+          <AppIcon name="file-text" :size="15" class="text-orange-300 shrink-0" />
+          <span class="truncate">Resolución de aprobación del tema: {{ datos.resolucion_tema.nombre }}</span>
+        </span>
+        <a
+          v-if="datos.resolucion_tema.ruta"
+          :href="assetUrl(datos.resolucion_tema.ruta)"
+          target="_blank"
+          rel="noopener"
+          class="btn-ghost !py-1.5 text-xs shrink-0"
+        >
+          <AppIcon name="link" :size="13" />
+          Ver PDF
+        </a>
+      </div>
       <div class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
         <dt class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Tema de Investigación</dt>
         <dd class="text-sm font-semibold text-white mt-0.5">{{ datos.tema_investigacion }}</dd>
@@ -60,6 +79,27 @@
         <AppIcon name="pencil" :size="14" />
         Editando información y documentos ya registrados.
       </p>
+
+      <div v-if="debeAprobarPerfil" class="sm:col-span-2 rounded-xl bg-orange-500/10 border border-orange-500/30 p-4">
+        <p class="text-sm font-semibold text-orange-200 flex items-center gap-2">
+          <AppIcon name="check-circle" :size="16" />
+          Validación de aprobación del perfil en base a la Resolución del HCC
+        </p>
+        <p class="mt-1 text-xs text-orange-100/90">
+          Con la Resolución ingresada, verifique el título y la documentación del perfil antes de guardar.
+        </p>
+
+        <div v-if="form.titulo_perfil" class="mt-3 rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
+          <p class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Título de perfil presentado</p>
+          <p class="mt-0.5 text-sm font-semibold text-white">{{ form.titulo_perfil }}</p>
+        </div>
+
+        <label class="mt-3 flex items-start gap-3 cursor-pointer select-none text-sm text-slate-200">
+          <input v-model="form.perfil_aprobado" type="checkbox" class="mt-0.5 w-4 h-4 rounded border-slate-500 bg-transparent text-orange-500 focus:ring-orange-400 focus:ring-offset-0" />
+          <span>Confirmo que el perfil de tesis queda <strong class="text-white">aprobado</strong> según la Resolución del HCC.</span>
+        </label>
+      </div>
+
       <div>
         <label class="label" for="tema-resolucion">Número de Resolución del HCC</label>
         <input
@@ -73,6 +113,42 @@
       <div>
         <label class="label" for="tema-fecha">Fecha de Resolución</label>
         <input id="tema-fecha" v-model="form.fecha_resolucion" type="date" class="input" :max="hoyISO" />
+      </div>
+
+      <div class="sm:col-span-2">
+        <label class="label" for="tema-resolucion-tema">
+          Resolución de aprobación del tema (HCC)
+          <span class="text-slate-500 font-normal normal-case">(PDF, opcional)</span>
+        </label>
+        <label
+          :class="[
+            'flex items-center justify-between gap-3 px-4 py-3 rounded-xl border-2 border-dashed cursor-pointer transition',
+            archivoResolucionTema ? 'border-orange-500/50 bg-orange-500/10' : 'border-white/10 bg-white/5 hover:border-orange-500/40',
+          ]"
+        >
+          <span class="flex items-center gap-2 text-sm min-w-0" :class="archivoResolucionTema ? 'text-orange-200' : 'text-slate-400'">
+            <AppIcon
+              :name="archivoResolucionTema ? 'check-circle' : 'file-text'"
+              :size="18"
+              :class="archivoResolucionTema ? 'text-emerald-400 shrink-0' : 'shrink-0'"
+            />
+            <span class="truncate">{{ archivoResolucionTema?.name || datos?.resolucion_tema?.nombre || 'Seleccione el PDF de la Resolución de aprobación del tema...' }}</span>
+          </span>
+          <input
+            id="tema-resolucion-tema"
+            type="file"
+            accept=".pdf,application/pdf"
+            class="hidden"
+            @change="handleResolucionTema"
+          />
+          <span class="btn-ghost !py-2 pointer-events-none">
+            <AppIcon name="plus" :size="15" />
+            Adjuntar
+          </span>
+        </label>
+        <p class="mt-1.5 text-xs text-slate-500">
+          Adjunte la Resolución del HCC que aprueba el tema y, en este paso, valida la aprobación del perfil.
+        </p>
       </div>
 
       <div class="sm:col-span-2">
@@ -196,6 +272,7 @@ const props = defineProps({
   docentes: { type: Array, default: () => [] },
   cargando: { type: Boolean, default: false },
   tituloPerfil: { type: String, default: '' },
+  tramite: { type: Object, default: null },
 });
 
 const emit = defineEmits(['guardar']);
@@ -205,15 +282,21 @@ const form = reactive({
   fecha_resolucion: props.datos?.fecha_resolucion || '',
   tema_investigacion: props.datos?.tema_investigacion || '',
   tutor_id: props.datos?.tutor_id || '',
+  perfil_aprobado: Boolean(props.datos?.perfil_aprobado),
+  titulo_perfil: '',
 });
 
 const busqueda = ref('');
 const abierta = ref(false);
 const errores = ref([]);
 const archivoResolucion = ref(null);
+const archivoResolucionTema = ref(null);
 
 const hoyISO = computed(() => new Date().toISOString().slice(0, 10));
 const tutorElegido = computed(() => props.docentes.find((d) => d.id_docente === Number(form.tutor_id)));
+const debeAprobarPerfil = computed(
+  () => props.tramite?.estado_actual === 'pendiente_concejo_universitario' && !props.completado,
+);
 
 const docentesFiltrados = computed(() => {
   const q = busqueda.value.trim().toLowerCase();
@@ -255,30 +338,61 @@ function handleResolucion(event) {
   event.target.value = '';
 }
 
+function handleResolucionTema(event) {
+  const file = event.target.files[0] || null;
+  if (file && file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+    errores.value = ['La Resolución de aprobación del tema debe ser un archivo PDF.'];
+    archivoResolucionTema.value = null;
+    event.target.value = '';
+    return;
+  }
+  archivoResolucionTema.value = file;
+  errores.value = [];
+  event.target.value = '';
+}
+
 function obtenerDatos() {
-  return {
+  const datos = {
     numero_resolucion: form.numero_resolucion.trim(),
     fecha_resolucion: form.fecha_resolucion,
     tema_investigacion: form.tema_investigacion.trim(),
     tutor_id: form.tutor_id,
   };
+  if (debeAprobarPerfil.value) {
+    datos.requiere_aprobacion_perfil = true;
+    datos.perfil_aprobado = Boolean(form.perfil_aprobado);
+    datos.titulo_perfil = String(form.titulo_perfil || props.tituloPerfil || '').trim();
+  }
+  return datos;
 }
 
 function guardar() {
   const datos = obtenerDatos();
+  if (debeAprobarPerfil.value && !datos.perfil_aprobado) {
+    errores.value = ['Debe confirmar la aprobación del perfil según la Resolución del HCC.'];
+    return;
+  }
+  if (debeAprobarPerfil.value && !String(datos.titulo_perfil || '').trim()) {
+    errores.value = ['No se encontró el título del perfil a aprobar.'];
+    return;
+  }
   const res = validarModulo('aprobacion_tema', datos);
   if (!res.ok) {
     errores.value = res.errores;
     return;
   }
   errores.value = [];
-  emit('guardar', datos, archivoResolucion.value);
+  const archivos = {};
+  if (archivoResolucionTema.value) archivos.resolucion_tema = archivoResolucionTema.value;
+  if (archivoResolucion.value) archivos.resolucion_tutor = archivoResolucion.value;
+  emit('guardar', datos, archivos);
 }
 
 watch(
   () => props.tituloPerfil,
   (titulo) => {
     const limpio = String(titulo || '').trim();
+    form.titulo_perfil = limpio;
     if (limpio && !form.tema_investigacion.trim()) {
       form.tema_investigacion = limpio;
     }
@@ -287,13 +401,18 @@ watch(
 );
 
 watch(
-  () => props.editando,
-  (activo) => {
-    if (activo && props.datos) {
+  () => [props.editando, props.datos, props.tramite?.estado_actual],
+  () => {
+    if (props.datos) {
       form.numero_resolucion = props.datos.numero_resolucion || '';
       form.fecha_resolucion = props.datos.fecha_resolucion || '';
       form.tema_investigacion = props.datos.tema_investigacion || '';
       form.tutor_id = props.datos.tutor_id || '';
+      form.perfil_aprobado = Boolean(props.datos.perfil_aprobado);
+      archivoResolucionTema.value = null;
+      archivoResolucion.value = null;
+    } else if (debeAprobarPerfil.value) {
+      form.perfil_aprobado = false;
     }
   },
   { immediate: true },
