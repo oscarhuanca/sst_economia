@@ -66,6 +66,15 @@
             </span>
           </dd>
         </div>
+
+        <div class="rounded-xl border border-orange-500/30 bg-orange-500/10 px-3.5 py-2.5 sm:col-span-2">
+          <dt class="dato-label text-orange-300">Nota final (promedio)</dt>
+          <dd class="mt-0.5 text-2xl font-extrabold text-orange-200">
+            {{ notaFinalGuardada ?? '—' }}
+            <span class="text-xs font-semibold opacity-70">/ 100</span>
+          </dd>
+          <p class="dato-ayuda mt-0.5">Promedio de la nota del examen teórico y de especialidad.</p>
+        </div>
       </dl>
     </div>
 
@@ -168,6 +177,17 @@
         </div>
       </div>
 
+      <div class="rounded-xl border border-orange-500/30 bg-orange-500/10 px-4 py-3 flex items-center justify-between gap-3">
+        <div>
+          <p class="dato-label text-orange-300">Nota final (promedio)</p>
+          <p class="dato-ayuda">Se calcula automáticamente cuando ambas notas están registradas.</p>
+        </div>
+        <p class="shrink-0 text-2xl font-extrabold text-orange-200">
+          {{ notaFinalFormulario ?? '—' }}
+          <span class="text-xs font-semibold opacity-70">/ 100</span>
+        </p>
+      </div>
+
       <ul v-if="errores.length" class="space-y-1">
         <li v-for="(e, i) in errores" :key="i" class="flex items-start gap-2 text-sm text-red-400">
           <AppIcon name="alert-triangle" :size="15" class="shrink-0 mt-0.5" />
@@ -216,7 +236,7 @@
 
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
-import { NOTA_MINIMA, validarModulo } from '@/modules/examen/utils/flujoExamen';
+import { NOTA_MINIMA, notaFinalExamen, validarModulo } from '@/modules/examen/utils/flujoExamen';
 import AppIcon from '@/ui/AppIcon.vue';
 import ModuloTarjeta from '../flujo/ModuloTarjeta.vue';
 
@@ -281,6 +301,19 @@ const notaEspecialidad = computed(() => props.registro?.nota_especialidad
   ?? props.datos?.nota_especialidad
   ?? props.sorteoEspecialidad?.nota
   ?? null);
+
+/** Nota final guardada por el backend; si no viniera, se recalcula con las notas. */
+const notaFinalGuardada = computed(() => props.datos?.nota_final
+  ?? notaFinalExamen({
+    nota_teorico: notaTeorico.value,
+    nota_especialidad: notaEspecialidad.value,
+  }));
+
+/** Vista previa del promedio mientras KARDEX asigna las notas del formulario. */
+const notaFinalFormulario = computed(() => notaFinalExamen({
+  nota_teorico: conservadoTeorico.value ? props.sorteoTeorico?.nota : form.nota_teorico,
+  nota_especialidad: conservadoEspecialidad.value ? props.sorteoEspecialidad?.nota : form.nota_especialidad,
+}));
 
 const teoricoAprobado = computed(() => examenAprobado(notaTeorico.value, asistioTeorico.value));
 const especialidadAprobado = computed(() => examenAprobado(notaEspecialidad.value, asistioEspecialidad.value));

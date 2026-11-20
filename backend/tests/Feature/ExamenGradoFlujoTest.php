@@ -290,6 +290,7 @@ class ExamenGradoFlujoTest extends TestCase
         $this->assertSame('aprobado', $tramite->estado_actual);
         $this->assertSame(74, $tramite->hitos['modulos']['asignacion_notas']['nota_teorico']);
         $this->assertSame(82, $tramite->hitos['modulos']['asignacion_notas']['nota_especialidad']);
+        $this->assertEquals(78, $tramite->hitos['modulos']['asignacion_notas']['nota_final']);
 
         $this->assertDatabaseHas('historial_estados_examen', [
             'id_tramite' => $tramite->id_tramite,
@@ -297,6 +298,26 @@ class ExamenGradoFlujoTest extends TestCase
             'resultado' => 'aprobado',
             'nota' => 74,
         ]);
+    }
+
+    public function test_la_nota_final_promedia_y_redondea_ambas_notas_a_dos_decimales(): void
+    {
+        $tramite = $this->crearTramiteExamen();
+        $kardex = $this->crearUsuarioGestion();
+
+        $this->habilitar($kardex, $tramite);
+        $this->sorteosAsistidos($tramite, $kardex);
+
+        $this->modulo($kardex, $tramite, 'asignacion_notas', [
+            'nota_teorico' => 74.5,
+            'nota_especialidad' => 81.33,
+        ])->assertCreated();
+
+        $tramite->refresh();
+
+        $this->assertSame(77.92, $tramite->hitos['modulos']['asignacion_notas']['nota_final']);
+        $this->assertSame(74.5, $tramite->hitos['modulos']['asignacion_notas']['nota_teorico']);
+        $this->assertSame(81.33, $tramite->hitos['modulos']['asignacion_notas']['nota_especialidad']);
     }
 
     public function test_una_nota_inferior_al_minimo_reprueba_al_cerrar_las_notas(): void
@@ -314,7 +335,10 @@ class ExamenGradoFlujoTest extends TestCase
             'nota_especialidad' => 90,
         ])->assertCreated();
 
-        $this->assertSame('examen_teorico_reprobado', $tramite->refresh()->estado_actual);
+        $tramite->refresh();
+
+        $this->assertSame('examen_teorico_reprobado', $tramite->estado_actual);
+        $this->assertEquals(70, $tramite->hitos['modulos']['asignacion_notas']['nota_final']);
 
         $this->assertDatabaseHas('historial_estados_examen', [
             'id_tramite' => $tramite->id_tramite,
@@ -398,7 +422,10 @@ class ExamenGradoFlujoTest extends TestCase
             'nota_especialidad' => 90,
         ])->assertCreated();
 
-        $this->assertSame('examen_teorico_reprobado', $tramite->refresh()->estado_actual);
+        $tramite->refresh();
+
+        $this->assertSame('examen_teorico_reprobado', $tramite->estado_actual);
+        $this->assertNull($tramite->hitos['modulos']['asignacion_notas']['nota_final']);
     }
 
     public function test_no_asistir_al_sorteo_de_especialidad_reprueba_el_examen_de_grado(): void
@@ -610,6 +637,7 @@ class ExamenGradoFlujoTest extends TestCase
         $this->assertSame('aprobado', $tramite->estado_actual);
         $this->assertSame(80, $tramite->hitos['examen_aprobado']['examen_teorico']['nota']);
         $this->assertSame(70, $tramite->hitos['examen_aprobado']['examen_especialidad']['nota']);
+        $this->assertEquals(75, $tramite->hitos['modulos']['asignacion_notas']['nota_final']);
 
         $this->modulo($kardex, $tramite, 'reporte', [])->assertCreated();
 
@@ -884,7 +912,10 @@ class ExamenGradoFlujoTest extends TestCase
             'nota_especialidad' => 88,
         ])->assertCreated();
 
-        $this->assertSame('aprobado', $tramite->refresh()->estado_actual);
+        $tramite->refresh();
+
+        $this->assertSame('aprobado', $tramite->estado_actual);
+        $this->assertEquals(84, $tramite->hitos['modulos']['asignacion_notas']['nota_final']);
         $this->assertSame(Carbon::today()->toDateString(), $tramite->hitos['aprobado'] ?? null);
 
         $this->modulo($kardex, $tramite, 'reporte', [])->assertCreated();

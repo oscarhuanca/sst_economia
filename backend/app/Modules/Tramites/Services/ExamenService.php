@@ -4,6 +4,7 @@ namespace App\Modules\Tramites\Services;
 
 use App\Models\Estudiante;
 use App\Models\HistorialEstadoExamen;
+use App\Models\Modalidad;
 use App\Models\Tramite;
 use App\Models\User;
 use App\Modules\Tramites\Events\EstadoTramiteCambiado;
@@ -118,10 +119,59 @@ class ExamenService
         'asignacion_notas',
     ];
 
+    /** Estados que cierran la solicitud del estudiante (no admiten otra igual). */
+    private const TERMINALES_SOLICITUD = ['rechazado', 'titulado'];
+
     public function __construct(
         private readonly TramiteStateService $stateService,
         private readonly TramiteService $tramites,
     ) {}
+
+    /**
+     * Presenta la solicitud de Examen de Grado del estudiante.
+     *
+     * Se comprueba que la modalidad esté activa, que el estudiante no tenga ya
+     * una solicitud en curso y que le queden intentos. El trámite nace en
+     * `solicitud_presentada`, pendiente de la verificación de KARDEX.
+     *
+     * @throws \DomainException Si no puede presentarse la solicitud.
+     */
+    public function crearSolicitud(User $user): Tramite
+    {
+        $modalidad = Modalidad::query()
+            ->where('nombre', TramiteStateService::MODALIDAD_EXAMEN)
+            ->where('activo', true)
+            ->first();
+
+        if ($modalidad === null) {
+            throw new \DomainException('La modalidad '.TramiteStateService::MODALIDAD_EXAMEN.' no está configurada en el sistema.');
+        }
+
+        $estudiante = $user->estudiante;
+
+        if ($estudiante === null) {
+            throw new \DomainException('Debe completar su perfil de estudiante primero.');
+        }
+
+        $enCurso = Tramite::query()
+            ->where('id_estudiante', $estudiante->id_estudiante)
+            ->where('id_modalidad', $modalidad->id_modalidad)
+            ->whereNotIn('estado_actual', self::TERMINALES_SOLICITUD)
+            ->exists();
+
+        if ($enCurso) {
+            throw new \DomainException('Ya tienes una solicitud de Examen de Grado en curso. Avanza desde el seguimiento de tu trámite.');
+        }
+
+        if ($estudiante->intentosAgotados()) {
+            throw new \DomainException('Ya agotaste los '.config('examen.maximo_intentos').' intentos permitidos para el Examen de Grado.');
+        }
+
+        return $this->tramites->crear([
+            'id_modalidad' => (int) $modalidad->id_modalidad,
+            'documentos' => [],
+        ], $user);
+    }
 
     /**
      * Registra un módulo del flujo de Examen de Grado y avanza el estado del
@@ -181,10 +231,11 @@ class ExamenService
         // En la asignación de notas el backend es quien conoce la nota de cada
         // examen (la de un examen conservado viene del hito `examen_aprobado`).
         // Se integran a los datos para que `hitos.modulos.asignacion_notas`
-        // queden completos y el seguimiento y el reporte muestren ambas notas.
+        // queden completos con ambas notas y su promedio (nota final).
         if ($modulo === 'asignacion_notas') {
             $datos['nota_teorico'] = $resolucion['notas']['examen_teorico'] ?? null;
             $datos['nota_especialidad'] = $resolucion['notas']['examen_especialidad'] ?? null;
+            $datos['nota_final'] = $resolucion['nota_final'] ?? null;
         }
 
         $this->persistirModulo($tramite, $modulo, $datos);
@@ -593,8 +644,8 @@ class ExamenService
      *
      * @param  array<string, mixed>  $datos
      * @return array{estado:string, resultado:?string, numero_resolucion:?string,
-     *               tema:?string, fecha_examen:?string, nota:?float, observacion:string,
-     *               notas:array<string, ?float>}
+     *               tema:?string, fecha_examen:?string, nota:?float, nota_final:?float,
+     *               observacion:string, notas:array<string, ?float>}
      */
     private function destinoNotas(array $datos, Tramite $tramite): array
     {
@@ -683,6 +734,8 @@ class ExamenService
             $estado = 'examen_especialidad_reprobado';
         }
 
+        $notaFinal = $this->notaFinal($notas);
+
         return [
             'estado' => $estado,
             'resultado' => $estado === 'aprobado' ? 'aprobado' : 'reprobado',
@@ -690,10 +743,31 @@ class ExamenService
             'tema' => null,
             'fecha_examen' => null,
             'nota' => $notas['examen_teorico'],
+            'nota_final' => $notaFinal,
             'notas' => $notas,
             'examen_aprobado' => $this->examenesAprobados($intento, $aprobados, $notas, $teoricoAprobado, $especialidadAprobado),
-            'observacion' => $this->observacionAsignacionNotas($notas, $fuentes, $minimo, $estado),
+            'observacion' => $this->observacionAsignacionNotas($notas, $fuentes, $minimo, $estado, $notaFinal),
         ];
+    }
+
+    /**
+     * Nota final del Examen de Grado: promedio de las dos notas asignadas.
+     *
+     * Solo existe cuando ambos exámenes tienen nota: una ausencia (o un examen
+     * aún sin nota) deja el promedio en null. El resultado se redondea a dos
+     * decimales. Es un dato informativo: la aprobación sigue exigiendo que cada
+     * examen alcance por separado la nota mínima.
+     *
+     * @param  array<string, mixed>  $notas
+     */
+    private function notaFinal(array $notas): ?float
+    {
+        if (! is_numeric($notas['examen_teorico'] ?? null)
+            || ! is_numeric($notas['examen_especialidad'] ?? null)) {
+            return null;
+        }
+
+        return round(((float) $notas['examen_teorico'] + (float) $notas['examen_especialidad']) / 2, 2);
     }
 
     /**
@@ -776,11 +850,11 @@ class ExamenService
     /**
      * Observación del historial para la asignación de notas.
      *
-     * Resume las dos notas juntas: la fila del historial tiene una sola columna
-     * de nota (se usa la del examen teórico) y el detalle completo de ambas
-     * queda en `hitos.modulos.asignacion_notas`.
+     * Resume las dos notas juntas y su promedio (nota final): la fila del
+     * historial tiene una sola columna de nota (se usa la del examen teórico) y
+     * el detalle completo queda en `hitos.modulos.asignacion_notas`.
      */
-    private function observacionAsignacionNotas(array $notas, array $fuentes, int $minimo, string $estado): string
+    private function observacionAsignacionNotas(array $notas, array $fuentes, int $minimo, string $estado, ?float $notaFinal): string
     {
         $detalle = [];
 
@@ -795,7 +869,13 @@ class ExamenService
             };
         }
 
-        $resumen = 'Asignación de notas — '.implode(' · ', $detalle)." (mínimo {$minimo}).";
+        $resumen = 'Asignación de notas — '.implode(' · ', $detalle);
+
+        if ($notaFinal !== null) {
+            $resumen .= ' Nota final (promedio): '.$this->formatearNota($notaFinal).' puntos';
+        }
+
+        $resumen .= " (mínimo {$minimo}).";
 
         if ($estado === 'aprobado') {
             return $resumen.' Ambos exámenes APROBADOS.';

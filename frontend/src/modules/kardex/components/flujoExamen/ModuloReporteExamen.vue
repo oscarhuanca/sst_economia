@@ -300,7 +300,7 @@
           y tramitar una nueva habilitación conforme a la Resolución del HCC vigente.
         </p>
         <p v-if="aprobadoMode" class="doc-parrafo">
-          Promedio final del examen de grado: <strong>{{ promedioFinal }}</strong>.
+          Nota final del examen de grado (promedio): <strong>{{ promedioFinal }}</strong>.
         </p>
       </section>
 
@@ -343,6 +343,7 @@ import {
   NOTA_MINIMA,
   historialExamen,
   resolucionesHistorial,
+  notaFinalExamen,
   validarModulo,
 } from '@/modules/examen/utils/flujoExamen';
 import { fechaLegible } from '@/modules/kardex/utils/formato';
@@ -498,9 +499,11 @@ const estudiante = computed(() => ({
 }));
 
 const promedioFinal = computed(() => {
-  const notas = exams.value.map((e) => Number(String(e.nota).split('/')[0])).filter((n) => !Number.isNaN(n));
-  if (!notas.length) return '—';
-  return `${(notas.reduce((a, b) => a + b, 0) / notas.length).toFixed(2)} / 100`;
+  const notas = notasAsignadas.value || {};
+  const valor = notas.nota_final ?? notaFinalExamen(notas);
+
+  if (valor === null || valor === undefined || valor === '') return '—';
+  return `${Number(valor).toFixed(2)} / 100`;
 });
 
 const emitter = computed(() => authStore.user?.nombres || 'Kardex Académico');

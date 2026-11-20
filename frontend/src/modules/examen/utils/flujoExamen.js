@@ -162,6 +162,28 @@ export const RANGO_NOTA = [0, 100];
 export const NOTA_MINIMA = 51;
 export const MAXIMO_INTENTOS = 3;
 
+/**
+ * Nota final del Examen de Grado: promedio de las dos notas asignadas.
+ *
+ * Espejo de `ExamenService::notaFinal()`: solo existe cuando AMBOS exámenes
+ * tienen nota (una inasistencia deja el promedio sin valor) y se redondea a dos
+ * decimales. Acepta tanto datos guardados (`hitos.modulos.asignacion_notas`)
+ * como el formulario de asignación, cuyas notas llegan como texto.
+ *
+ * @param {Object} notas `{ nota_teorico, nota_especialidad }`.
+ * @returns {number|null} Promedio redondeado, o null si falta alguna nota.
+ */
+export function notaFinalExamen(notas = {}) {
+  const valores = [notas?.nota_teorico, notas?.nota_especialidad];
+
+  if (valores.some((v) => v === null || v === undefined || v === '' || Number.isNaN(Number(v)))) {
+    return null;
+  }
+
+  const promedio = (Number(valores[0]) + Number(valores[1])) / 2;
+  return Math.round(promedio * 100) / 100;
+}
+
 /** Indica si el trámite pertenece a la modalidad de Examen de Grado. */
 export function esFlujoExamen(tramite) {
   return tramite?.modalidad?.nombre === 'Examen de Grado';

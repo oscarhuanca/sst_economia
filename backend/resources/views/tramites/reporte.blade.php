@@ -191,6 +191,28 @@
         </table>
     </div>
 
+    {{-- 4.1. Examen de Grado: notas de ambos exámenes y promedio final --}}
+    @if (($modalidad?->nombre === 'Examen de Grado') && isset($modulos['asignacion_notas']))
+        @php $asignacion = $modulos['asignacion_notas']; @endphp
+        <div class="seccion">
+            <h2>4.1. Resultado del Examen de Grado</h2>
+            <table class="cuadro">
+                <tr>
+                    <th style="width:38%">Examen teórico</th>
+                    <td class="nota">{{ $asignacion['nota_teorico'] ?? '—' }}</td>
+                </tr>
+                <tr>
+                    <th>Examen de especialidad</th>
+                    <td class="nota">{{ $asignacion['nota_especialidad'] ?? '—' }}</td>
+                </tr>
+                <tr class="fila-destacada">
+                    <th>Nota final (promedio)</th>
+                    <td class="nota">{{ $asignacion['nota_final'] ?? '—' }}{{ isset($asignacion['nota_final']) ? ' / 100' : '' }}</td>
+                </tr>
+            </table>
+        </div>
+    @endif
+
     {{-- 5. Hitos y plazos --}}
     @php
         $hitos = $hitos ?? [];

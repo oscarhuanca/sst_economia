@@ -167,6 +167,10 @@
                 </dd>
               </div>
             </dl>
+
+            <p v-if="it.notaFinal !== null" class="mt-2 text-xs text-orange-200">
+              Nota final (promedio): <strong>{{ it.notaFinal }}</strong> / 100
+            </p>
           </li>
         </ol>
 
@@ -234,6 +238,7 @@ import {
   esReabrible,
   modulosExamen,
   datosDeModulo,
+  notaFinalExamen,
 } from '@/modules/examen/utils/flujoExamen';
 import AppIcon from '@/ui/AppIcon.vue';
 
@@ -386,6 +391,8 @@ function datosModulo(m) {
       if (notas.nota_especialidad !== null && notas.nota_especialidad !== undefined && notas.nota_especialidad !== '') {
         partes.push(`Especialidad ${notas.nota_especialidad}`);
       }
+      const notaFinal = notas.nota_final ?? notaFinalExamen(notas);
+      if (notaFinal !== null && notaFinal !== undefined) partes.push(`Nota final ${notaFinal}`);
       if (partes.length) return partes.join(' · ');
       return r.resultado === 'aprobado' ? 'Ambos exámenes aprobados' : 'Examen reprobado';
     }
@@ -436,6 +443,7 @@ const intentos = computed(() => {
         resultadoFinal: Boolean(asignacion && asignacion.resultado === 'aprobado'),
         teorico,
         especialidad,
+        notaFinal: notaFinalIntento(teorico, especialidad),
       });
     });
 
@@ -502,6 +510,14 @@ function extraerNota(asignacion, esTeorico) {
   const texto = String(asignacion.observaciones || '');
   const coincidencia = texto.match(/examen de especialidad:\s*(?:([\d.]+)\s*puntos|no asistió)/i);
   return coincidencia?.[1] || null;
+}
+
+/** Promedio del intento; falta si alguno de los dos exámenes no tiene nota. */
+function notaFinalIntento(teorico, especialidad) {
+  return notaFinalExamen({
+    nota_teorico: teorico?.nota,
+    nota_especialidad: especialidad?.nota,
+  });
 }
 
 function textoNota(examen) {

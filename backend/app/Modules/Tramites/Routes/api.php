@@ -1,8 +1,14 @@
 <?php
 
+use App\Modules\Tramites\Http\Controllers\ExamenSolicitudController;
 use App\Modules\Tramites\Http\Controllers\ModalidadController;
 use App\Modules\Tramites\Http\Controllers\TramiteController;
 use App\Support\Roles;
+
+// Solicitud de Examen de Grado presentada por el estudiante.
+Route::middleware(['auth:sanctum', 'role:'.Roles::ESTUDIANTE])->group(function () {
+    Route::post('/examen/solicitud', [ExamenSolicitudController::class, 'store']);
+});
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/modalidades', [ModalidadController::class, 'index']);

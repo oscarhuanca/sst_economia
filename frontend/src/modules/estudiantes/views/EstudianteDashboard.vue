@@ -263,6 +263,29 @@
               </span>
             </div>
           </router-link>
+
+          <!-- Examen de Grado: solicitud y seguimiento de los intentos del examen -->
+          <router-link to="/estudiante/examen" class="card overflow-hidden relative block group hover:ring-2 hover:ring-orange-500/40 transition-all duration-200">
+            <div class="absolute inset-x-0 top-0 h-2 bg-gradient-to-r from-amber-400 to-orange-500"></div>
+            <div class="p-6 sm:p-8 flex flex-wrap items-center justify-between gap-4">
+              <div class="flex items-center gap-4">
+                <div class="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-300 group-hover:bg-amber-500/20 group-hover:scale-105 transition-all duration-200">
+                  <AppIcon name="clipboard" :size="28" />
+                </div>
+                <div>
+                  <h2 class="text-lg font-extrabold text-white transition-colors duration-200 group-hover:text-amber-300">Examen de Grado</h2>
+                  <p class="text-sm text-slate-400">
+                    Solicita la modalidad por examen teórico y de especialidad; KARDEX verifica
+                    tus intentos y registra el avance correspondiente.
+                  </p>
+                </div>
+              </div>
+              <span class="btn-warm px-5 py-2.5">
+                <AppIcon name="arrow-left" :size="15" class="rotate-180" />
+                Solicitar Modalidad
+              </span>
+            </div>
+          </router-link>
         </template>
       </div>
     </template>
