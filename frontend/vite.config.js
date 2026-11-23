@@ -11,6 +11,12 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const port = Number(env.VITE_PORT) || 5173
 
+  const backend = env.VITE_BACKEND_URL || 'http://127.0.0.1:8000'
+  const proxy = {
+    '/api': { target: backend, changeOrigin: true },
+    '/storage': { target: backend, changeOrigin: true },
+  }
+
   return {
     plugins: [
       vue(),
@@ -29,10 +35,12 @@ export default defineConfig(({ mode }) => {
     server: {
       port,
       host: true,
+      proxy,
     },
     preview: {
       port,
       host: true,
+      proxy,
     },
     build: {
       // Optimización de performance: separa CSS por chunk y desactiva sourcemaps (valores por defecto de Vite, explícitos).
