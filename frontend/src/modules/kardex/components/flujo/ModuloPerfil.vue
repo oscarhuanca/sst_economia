@@ -31,6 +31,11 @@
           <span class="text-xs text-emerald-400 truncate max-w-[40%]">
             {{ datos.documentos?.[d.tipo]?.archivo?.nombre || 'Verificado' }}
           </span>
+          <a v-if="rutaArchivo(d.tipo)" :href="assetUrl(rutaArchivo(d.tipo))" target="_blank" rel="noopener noreferrer"
+             class="inline-flex items-center gap-1 text-xs font-bold text-emerald-200 hover:text-emerald-100 hover:underline shrink-0">
+            <AppIcon name="link" :size="12" />
+            Ver PDF
+          </a>
         </div>
       </div>
       <p v-if="datos.observaciones" class="mt-3 text-sm text-slate-300 italic">
@@ -86,6 +91,26 @@
       <div v-if="tituloPresentado" class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-3">
         <p class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">{{ tituloLabel }} presentado</p>
         <p class="mt-1 text-sm font-semibold text-white">{{ tituloPresentado }}</p>
+      </div>
+
+      <div v-if="documentosPerfil.length" class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-3">
+        <p class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">
+          Documentos presentados por el estudiante
+        </p>
+        <ul class="mt-2 space-y-2">
+          <li v-for="d in documentosPerfil" :key="d.tipo" class="flex items-center justify-between gap-2 text-sm">
+            <span class="flex items-center gap-2 text-slate-200 min-w-0">
+              <AppIcon name="file-text" :size="14" class="text-orange-300 shrink-0" />
+              <span class="truncate">{{ d.etiqueta }}</span>
+            </span>
+            <a v-if="rutaArchivo(d.tipo)" :href="assetUrl(rutaArchivo(d.tipo))" target="_blank" rel="noopener noreferrer"
+               class="inline-flex items-center gap-1 text-xs font-bold text-orange-300 hover:text-orange-200 hover:underline shrink-0">
+              <AppIcon name="link" :size="12" />
+              Ver PDF
+            </a>
+            <span v-else class="text-xs text-slate-500 shrink-0">Sin archivo</span>
+          </li>
+        </ul>
       </div>
     </div>
 
@@ -442,6 +467,13 @@ const documentosDelTramite = computed(() => {
   );
 });
 
+/** Ruta del PDF inicial del estudiante, incluso después de remitir al HCC. */
+function rutaArchivo(tipo) {
+  return props.datos?.documentos?.[tipo]?.archivo?.ruta
+    || documentosDelTramite.value[tipo]?.ruta
+    || null;
+}
+
 
 function hidratarFormulario() {
   const titulo = props.datos?.titulo || tituloPresentado.value || '';
@@ -533,6 +565,7 @@ function obtenerDatos(accion) {
             ? {
               nombre: nombreArchivo(item.archivo),
               tamanio: item.archivo.size ?? item.archivo.tamanio ?? null,
+              ruta: item.archivo.ruta || documentosDelTramite.value[tipo]?.ruta || null,
             }
             : null,
         },

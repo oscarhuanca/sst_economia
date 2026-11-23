@@ -97,10 +97,10 @@
 
                 <div class="mt-4 flex flex-wrap gap-1.5">
                   <a v-for="doc in tramite.documentos" :key="doc.id_documento"
-                     :href="assetUrl(doc.ruta_archivo)" target="_blank"
+                     :href="assetUrl(doc.ruta_archivo)" target="_blank" rel="noopener noreferrer"
                      class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-orange-300 bg-orange-500/10 border border-orange-500/30 hover:bg-orange-500/20 transition-all duration-200">
                     <AppIcon name="link" :size="13" />
-                    {{ etiquetaDocumento(doc.tipo_documento) }}
+                    {{ etiquetaDocumento(doc.tipo_documento) }} · Ver
                   </a>
                 </div>
 

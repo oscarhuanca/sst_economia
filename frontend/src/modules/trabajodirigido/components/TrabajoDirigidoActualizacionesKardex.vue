@@ -51,7 +51,14 @@
               <dt class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                 {{ campo.etiqueta }}
               </dt>
-              <dd class="text-sm font-semibold text-slate-100 break-words">{{ campo.valor }}</dd>
+              <dd class="text-sm font-semibold text-slate-100 break-words">
+                <a v-if="campo.ruta" :href="assetUrl(campo.ruta)" target="_blank" rel="noopener noreferrer"
+                   class="inline-flex items-center gap-1.5 text-orange-300 hover:text-orange-200 hover:underline">
+                  <AppIcon name="file-text" :size="13" />
+                  {{ campo.valor }} · Ver PDF
+                </a>
+                <template v-else>{{ campo.valor }}</template>
+              </dd>
             </div>
           </dl>
         </li>
@@ -68,6 +75,7 @@
 // trámite del estudiante.
 import { computed } from 'vue';
 import { actualizacionesKardex } from '../utils/flujoTitulacion';
+import { assetUrl } from '@/core/http/storage';
 import { fechaLegible } from '@/modules/kardex/utils/formato';
 import AppIcon from '@/ui/AppIcon.vue';
 

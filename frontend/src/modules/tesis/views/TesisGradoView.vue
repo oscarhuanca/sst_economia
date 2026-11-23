@@ -484,10 +484,10 @@
             </h3>
             <div v-if="tramite.documentos.length" class="grid sm:grid-cols-2 gap-2.5">
               <a v-for="doc in tramite.documentos" :key="doc.id_documento"
-                 :href="assetUrl(doc.ruta_archivo)" target="_blank"
+                 :href="assetUrl(doc.ruta_archivo)" target="_blank" rel="noopener noreferrer"
                  class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-orange-300 bg-orange-500/10 border border-orange-500/30 hover:bg-orange-500/20 transition-all duration-200">
                 <AppIcon name="link" :size="16" />
-                {{ etiquetaDocumento(doc.tipo_documento) }}
+                {{ etiquetaDocumento(doc.tipo_documento) }} · Ver
                 <span class="ml-auto text-xs text-slate-400">{{ new Date(doc.created_at).toLocaleDateString('es-BO') }}</span>
               </a>
             </div>

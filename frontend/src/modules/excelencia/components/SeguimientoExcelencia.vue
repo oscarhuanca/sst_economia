@@ -148,6 +148,29 @@
         </div>
       </div>
     </div>
+
+    <div v-if="documentos.length" class="card overflow-hidden">
+      <div class="p-5">
+        <h3 class="text-base font-extrabold text-white inline-flex items-center gap-2">
+          <AppIcon name="file-text" :size="18" class="text-orange-300" />
+          Documentos del trámite
+        </h3>
+        <ul class="mt-3 space-y-2">
+          <li
+            v-for="doc in documentos"
+            :key="doc.id_documento || doc.ruta_archivo"
+            class="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white/5 ring-1 ring-white/10 px-3.5 py-2.5"
+          >
+            <span class="text-sm font-semibold text-slate-200">{{ etiquetaDocumento(doc.tipo_documento) }}</span>
+            <a :href="assetUrl(doc.ruta_archivo)" target="_blank" rel="noopener noreferrer"
+               class="inline-flex items-center gap-1.5 text-xs font-bold text-orange-300 hover:text-orange-200 hover:underline">
+              <AppIcon name="file-text" :size="13" />
+              Ver PDF
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -171,6 +194,8 @@ import {
     resolucionHcc,
 } from '../utils/flujoExcelencia';
 import { fechaLegible } from '@/modules/kardex/utils/formato';
+import { assetUrl } from '@/core/http/storage';
+import { etiquetaDocumento } from '@/modules/tramites/utils/estados';
 import { useExcelenciaStore } from '../stores/excelencia';
 import AppIcon from '@/ui/AppIcon.vue';
 
@@ -247,6 +272,8 @@ const ultimaActualizacion = computed(() => {
     const ultima = lista[0];
     return ultima ? { ...ultima, tone: toneEstado(ultima.nombre_estado) } : null;
 });
+
+const documentos = computed(() => props.tramite?.documentos || []);
 
 /** Módulos del flujo con su estado visual y el dato esencial de cada uno. */
 const modulos = computed(() =>

@@ -402,6 +402,7 @@ function camposDeModulo(config, moduloId, datos, tramite) {
           return {
             etiqueta: d.etiqueta,
             valor: `${item.marcado ? 'Verificado' : 'Pendiente'}${archivo ? ` · ${archivo}` : ''}`,
+            ruta: item.archivo?.ruta || null,
           };
         }),
         { etiqueta: 'Observaciones', valor: datos.observaciones },
@@ -421,7 +422,11 @@ function camposDeModulo(config, moduloId, datos, tramite) {
                 ? `Docente #${datos.tutor_id}`
                 : null,
         },
-        { etiqueta: 'Resolución de designación del tutor', valor: datos.resolucion_tutor?.nombre },
+        {
+          etiqueta: 'Resolución de designación del tutor',
+          valor: datos.resolucion_tutor?.nombre,
+          ruta: datos.resolucion_tutor?.ruta || null,
+        },
       ]);
 
     case 'tribunal_revisor':
@@ -430,11 +435,13 @@ function camposDeModulo(config, moduloId, datos, tramite) {
           etiqueta: 'Nota de Suficiencia del tutor',
           valor: datos.nota_suficiencia_tutor?.nombre
             || (datos.nota_suficiencia_tutor_entregada ? 'Entregada' : null),
+          ruta: datos.nota_suficiencia_tutor?.ruta || null,
         },
         {
           etiqueta: 'Resolución de designación del tribunal revisor',
           valor: datos.resolucion_tribunal?.nombre
             || (datos.resolucion_tribunal_entregada ? 'Confirmada' : null),
+          ruta: datos.resolucion_tribunal?.ruta || null,
         },
         { etiqueta: 'N.º de Resolución del HCC', valor: datos.numero_resolucion },
         { etiqueta: 'Fecha de la resolución', valor: fechaLegible(datos.fecha_resolucion) },
@@ -445,6 +452,7 @@ function camposDeModulo(config, moduloId, datos, tramite) {
           return {
             etiqueta: ETIQUETAS_ROL_TRIBUNAL[rol] || rol,
             valor: [miembro?.nombre, nota].filter(Boolean).join(' · ') || null,
+            ruta: miembro?.nota_suficiencia?.ruta || null,
           };
         }),
       ]);
@@ -473,12 +481,32 @@ function camposDeModulo(config, moduloId, datos, tramite) {
 
     case 'publicacion':
       return filas([
-        { etiqueta: config.etiquetaPublicacion || 'Trabajo de investigación', valor: datos.archivo?.nombre },
+        {
+          etiqueta: config.etiquetaPublicacion || 'Trabajo de investigación',
+          valor: datos.archivo?.nombre,
+          ruta: datos.archivo?.ruta || null,
+        },
       ]);
 
     default:
       return [];
   }
+}
+
+const BADGE_PERFIL_POR_ESTADO = {
+  solicitud_presentada: 'Perfil Presentado',
+  pendiente_concejo_universitario: 'Perfil Remitido a HCC',
+  perfil_rechazado: 'Perfil Rechazado',
+  perfil_aprobado: 'Perfil Aprobado',
+};
+
+function estadoPerfilDe(tramite) {
+  const estado = tramite?.estado_actual;
+  if (estado === 'pendiente_concejo_universitario' || estado === 'perfil_rechazado') return estado;
+  if (estado !== 'rechazado' && (PCT_POR_ESTADO[estado] ?? 0) >= PCT_POR_ESTADO.perfil_aprobado) {
+    return 'perfil_aprobado';
+  }
+  return 'solicitud_presentada';
 }
 
 /**
@@ -500,12 +528,14 @@ export function actualizacionesKardex(tramite) {
 
   return modulosDe(config).map((m) => {
     const datos = modulos[m.id] || null;
-    const fecha = fechaDeModulo(tramite, m.estado);
+    const esPerfil = m.id === config.moduloPerfil;
+    const estadoModulo = esPerfil ? estadoPerfilDe(tramite) : m.estado;
+    const fecha = fechaDeModulo(tramite, estadoModulo);
     return {
       id: m.id,
       label: m.label,
-      estado: m.estado,
-      badge: m.badge,
+      estado: estadoModulo,
+      badge: esPerfil ? BADGE_PERFIL_POR_ESTADO[estadoModulo] : m.badge,
       icon: m.icon,
       fecha: fecha ? String(fecha).slice(0, 10) : null,
       campos: camposDeModulo(config, m.id, datos, tramite),
