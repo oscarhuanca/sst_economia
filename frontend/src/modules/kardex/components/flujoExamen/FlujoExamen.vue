@@ -110,8 +110,9 @@
     </div>
 
     <!-- 8 módulos del flujo, cada uno bloqueado hasta cerrar el anterior -->
-    <div class="grid lg:grid-cols-2 gap-4">
+    <div ref="contenedorModulos" class="grid lg:grid-cols-2 gap-4">
       <template v-for="(m, i) in modulos" :key="m.id">
+        <div :id="`modulo-${m.id}`">
         <ModuloIntentosExamen
           v-if="m.id === 'verificacion_intentos'"
           :completado="m.completado"
@@ -120,8 +121,11 @@
           :cargando="i === proximoPendiente && guardando"
           :intentos="usados"
           :maximo="maximoIntentos"
+          :documentos="tramite.documentos || []"
+          :documentos-verificados="documentosVerificados"
           :registro="m.registro"
           @guardar="(datos) => guardar(m.id, datos)"
+          @continuar="irAHabilitacion"
         />
         <ModuloHabilitacionExamen
           v-else-if="m.id === 'habilitacion_examen'"
@@ -191,13 +195,14 @@
           :tramite="tramite"
           @guardar="(datos) => guardar(m.id, datos)"
         />
+        </div>
       </template>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import { useKardexStore } from '../../stores/kardex';
 import {
   MAXIMO_INTENTOS,
@@ -206,7 +211,6 @@ import {
   intentosRestantes,
   intentosUsados,
   modulosExamen,
-  pctExamen,
   proximoModuloPendiente,
   validarModulo,
 } from '@/modules/examen/utils/flujoExamen';
@@ -223,6 +227,18 @@ import ModuloResolucionAsignacionNotas from './ModuloResolucionAsignacionNotas.v
 import ModuloAsignacionNotas from './ModuloAsignacionNotas.vue';
 import ModuloReporteExamen from './ModuloReporteExamen.vue';
 
+const ESTADOS_POST_VERIFICACION = [
+  'intentos_verificados',
+  'habilitado_examen',
+  'examen_teorico_sorteado',
+  'examen_teorico_aprobado',
+  'notas_habilitadas',
+  'aprobado',
+  'examen_teorico_reprobado',
+  'examen_especialidad_reprobado',
+  'titulado',
+];
+
 const props = defineProps({
   tramite: { type: Object, default: null },
 });
@@ -233,20 +249,48 @@ const kardexStore = useKardexStore();
 const toastStore = useToastStore();
 
 const guardando = ref(false);
+const contenedorModulos = ref(null);
 
 const estudiante = computed(() => props.tramite?.estudiante || {});
-const progreso = computed(() => pctExamen(props.tramite));
-const proximoPendiente = computed(() => proximoModuloPendiente(props.tramite));
 const reabrible = computed(() => esReabrible(props.tramite));
 const usados = computed(() => intentosUsados(props.tramite));
 const restantes = computed(() => intentosRestantes(props.tramite));
 const maximoIntentos = MAXIMO_INTENTOS;
+const documentosVerificados = computed(
+  () => props.tramite?.hitos?.recepcion_documentos?.verificado === true,
+);
+const intentosYaVerificados = computed(() =>
+  ESTADOS_POST_VERIFICACION.includes(props.tramite?.estado_actual),
+);
+function siguientePendiente(tramite) {
+  const pendiente = proximoModuloPendiente(tramite);
+  return ESTADOS_POST_VERIFICACION.includes(tramite?.estado_actual) && pendiente === 0 ? 1 : pendiente;
+}
+
+const proximoPendiente = computed(() => siguientePendiente(props.tramite));
 
 const modulos = computed(() =>
-  modulosExamen(props.tramite).map((m) => ({
-    ...m,
-    datos: props.tramite?.hitos?.modulos?.[m.id] || null,
-  })),
+  modulosExamen(props.tramite).map((m) => {
+    const verificado = m.id === 'verificacion_intentos' && intentosYaVerificados.value;
+
+    return {
+      ...m,
+      datos: props.tramite?.hitos?.modulos?.[m.id] || null,
+      registro: verificado && !m.registro
+        ? {
+            resultado: 'verificado',
+            observaciones: 'Intentos verificados. Continúe con la habilitación del estudiante.',
+          }
+        : m.registro,
+      completado: verificado ? true : m.completado,
+    };
+  }),
+);
+
+const progreso = computed(() =>
+  modulos.value.length
+    ? Math.round((modulos.value.filter((m) => m.completado).length / modulos.value.length) * 100)
+    : 0,
 );
 
 const fechaInicio = computed(() =>
@@ -336,7 +380,66 @@ function descripcionDe(m) {
     : 'Sorteo de bolo y fecha del examen de especialidad. Requiere la Resolución de aprobación del resultado del teórico. No asistir reprueba el examen; la nota se registra en Asignación de Notas.';
 }
 
+async function irAHabilitacion() {
+  toastStore.success(
+    `El estudiante está dentro del rango de intentos (${usados.value} de ${maximoIntentos}). `
+    + 'Continúe en el punto 2: Habilitación del Estudiante.',
+  );
+  await nextTick();
+  contenedorModulos.value
+    ?.querySelector('#modulo-habilitacion_examen')
+    ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+async function avanzar(moduloId, datos, actualizado, modulo) {
+  if (moduloId === 'verificacion_intentos') {
+    if (actualizado?.estado_actual === 'rechazado') {
+      toastStore.warning('Solicitud rechazada: el estudiante agotó los intentos permitidos.');
+      return;
+    }
+    await irAHabilitacion();
+    return;
+  }
+
+  if (moduloId === 'asignacion_notas' && esReabrible(actualizado)) {
+    toastStore.warning('Notas asignadas: al menos un examen quedó REPROBADO. Reabra el examen para continuar.');
+    return;
+  }
+
+  const indice = siguientePendiente(actualizado);
+  const siguiente = MODULOS_FLUJO_EXAMEN[indice];
+
+  if (moduloId === 'reporte' || actualizado?.estado_actual === 'titulado') {
+    toastStore.success('Reporte generado. El estudiante quedó titulado.');
+    return;
+  }
+
+  if (moduloId === 'habilitacion_examen') {
+    toastStore.success(
+      `Estudiante habilitado con la Resolución N.º ${datos.numero_resolucion}. `
+      + `Continúe en el punto 3: ${siguiente?.label || 'Sorteo del Examen Teórico'}.`,
+    );
+  } else {
+    toastStore.success(
+      `Módulo completado — ${modulo.badge}.`
+      + (siguiente ? ` Continúe en el punto ${indice + 1}: ${siguiente.label}.` : ''),
+    );
+  }
+
+  if (siguiente) {
+    await nextTick();
+    contenedorModulos.value
+      ?.querySelector(`#modulo-${siguiente.id}`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
 async function guardar(moduloId, datos) {
+  if (moduloId === 'verificacion_intentos' && intentosYaVerificados.value) {
+    await irAHabilitacion();
+    return;
+  }
+
   const modulo = MODULOS_FLUJO_EXAMEN.find((m) => m.id === moduloId);
   const contexto = moduloId === 'verificacion_intentos'
     ? { intentos: usados.value, maximo: maximoIntentos }
@@ -364,11 +467,7 @@ async function guardar(moduloId, datos) {
     return;
   }
 
-  if (moduloId === 'asignacion_notas' && esReabrible(actualizado)) {
-    toastStore.warning('Notas asignadas: al menos un examen quedó REPROBADO.');
-  } else {
-    toastStore.success(`Módulo completado — estado: ${modulo.badge}`);
-  }
+  await avanzar(moduloId, datos, actualizado, modulo);
   emit('guardado', actualizado);
 }
 

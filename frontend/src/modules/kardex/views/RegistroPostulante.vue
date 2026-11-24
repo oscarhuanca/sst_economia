@@ -324,7 +324,9 @@
               >
                 <AppIcon v-if="remitiendo" name="loader" :size="18" class="animate-spin" />
                 <AppIcon v-else name="send" :size="18" />
-                <span class="uppercase tracking-wide">Acusar recibido y remitir al HCC</span>
+                <span class="uppercase tracking-wide">
+                  {{ esExamen ? 'Verificado: continuar a Examen de Grado' : 'Acusar recibido y remitir al HCC' }}
+                </span>
               </button>
             </div>
 
@@ -377,13 +379,14 @@
 
 <script setup>
 import { reactive, ref, computed, onMounted, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useKardexStore, MODALIDADES_ASIGNABLES } from '@/modules/kardex';
 import { fechaLegible, iniciales } from '@/modules/kardex/utils/formato';
 import { EstadoBadge } from '@/modules/tramites';
 import { tramitesService } from '@/modules/tramites/services/tramites';
 import { configDeTramite, tituloPerfil } from '@/modules/tramites/utils/flujoTitulacion';
 import { formatoEstado } from '@/modules/tramites/utils/estados';
+import { TIPOS_DOCUMENTO_EXAMEN } from '@/modules/examen/utils/flujoExamen';
 import { assetUrl } from '@/core/http/storage';
 import { useToastStore } from '@/core/stores/toast';
 import AppIcon from '@/ui/AppIcon.vue';
@@ -392,6 +395,7 @@ import EmptyState from '@/ui/EmptyState.vue';
 const kardexStore = useKardexStore();
 const toastStore = useToastStore();
 const route = useRoute();
+const router = useRouter();
 
 const identificador = ref('');
 const seleccion = ref(null);
@@ -415,15 +419,30 @@ const cuentaVerificada = computed(() =>
 const configTramite = computed(() => configDeTramite(kardexStore.tramite));
 const documentosTramite = computed(() => kardexStore.tramite?.documentos || []);
 const tituloTramite = computed(() => tituloPerfil(kardexStore.tramite));
-const pendienteRemision = computed(() => kardexStore.tramite?.estado_actual === 'solicitud_presentada');
-const documentacionRemitida = computed(
-  () => kardexStore.tramite?.estado_actual === 'pendiente_concejo_universitario',
+const esExamen = computed(() => kardexStore.tramite?.modalidad?.nombre === 'Examen de Grado');
+const documentosExamenVerificados = computed(
+  () => kardexStore.tramite?.hitos?.recepcion_documentos?.verificado === true,
 );
-const puedeRemitir = computed(
-  () => pendienteRemision.value
-    && documentosTramite.value.length > 0
-    && documentosTramite.value.every((doc) => verificados[claveDoc(doc)]),
+const pendienteRemision = computed(() =>
+  kardexStore.tramite?.estado_actual === 'solicitud_presentada'
+  && !(esExamen.value && documentosExamenVerificados.value),
 );
+const documentacionRemitida = computed(() => esExamen.value
+  ? documentosExamenVerificados.value
+  : kardexStore.tramite?.estado_actual === 'pendiente_concejo_universitario',
+);
+const puedeRemitir = computed(() => {
+  if (!pendienteRemision.value || !documentosTramite.value.length) return false;
+
+  if (!esExamen.value) {
+    return documentosTramite.value.every((doc) => verificados[claveDoc(doc)]);
+  }
+
+  return TIPOS_DOCUMENTO_EXAMEN.every(({ tipo }) => {
+    const doc = documentosTramite.value.find((item) => item.tipo_documento === tipo);
+    return doc && verificados[claveDoc(doc)];
+  });
+});
 
 onMounted(async () => {
   await kardexStore.cargarModalidades();
@@ -488,10 +507,23 @@ function resetRecepcion() {
   observacionesRecepcion.value = '';
 }
 
+function sincronizarVerificacion() {
+  resetRecepcion();
+  const recepcion = kardexStore.tramite?.hitos?.recepcion_documentos;
+  if (!recepcion?.verificado) return;
+
+  documentosTramite.value.forEach((doc) => {
+    if (recepcion.documentos?.[doc.tipo_documento]?.marcado) {
+      verificados[claveDoc(doc)] = true;
+    }
+  });
+}
+
 /** Verifica en el backend la cuenta y el trámite del postulante. */
 const verificar = async () => {
   const datos = await kardexStore.refrescar(identificador.value.trim());
   if (datos?.tramite?.estado_actual !== 'solicitud_presentada') resetRecepcion();
+  else sincronizarVerificacion();
   if (!datos) toastStore.error('No se pudo verificar la información del postulante.');
 };
 
@@ -513,16 +545,39 @@ const asignar = async () => {
   }
 };
 
-/** Acusa recibo de la documentación física/digital y remite el trámite al HCC. */
+/** Acusa recibo de la documentación física/digital y continúa según la modalidad. */
 const remitirAlHcc = async () => {
   if (!kardexStore.tramite || !puedeRemitir.value || remitiendo.value) return;
   remitiendo.value = true;
+  const idTramite = kardexStore.tramite.id_tramite;
+  const identificadorPostulante = identificador.value.trim();
+  const observaciones = observacionesRecepcion.value.trim();
   try {
-    const obs = observacionesRecepcion.value.trim();
+    if (esExamen.value) {
+      const documentos = {};
+      documentosTramite.value.forEach((doc) => {
+        documentos[doc.tipo_documento] = Boolean(verificados[claveDoc(doc)]);
+      });
+
+      const verificado = await kardexStore.verificarDocumentosExamen(documentos, observaciones);
+      if (!verificado) {
+        toastStore.error(kardexStore.errorMessage || 'No se pudo verificar la documentación del examen.');
+        return;
+      }
+
+      toastStore.success('Documentación verificada. Continúe con el flujo de Examen de Grado.');
+      resetRecepcion();
+      await router.push({
+        path: '/kardex/examen',
+        query: { identificador: identificadorPostulante, tramite: String(idTramite) },
+      });
+      return;
+    }
+
     await tramitesService.revisar(
-      kardexStore.tramite.id_tramite,
+      idTramite,
       'aprobar',
-      obs || 'Documentación digital verificada con la documentación física recepcionada. Remitido al HCC.',
+      observaciones || 'Documentación digital verificada con la documentación física recepcionada. Remitido al HCC.',
     );
     toastStore.success('Documentación acusada como recibida y remitida al HCC.');
     resetRecepcion();

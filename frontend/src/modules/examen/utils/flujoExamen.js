@@ -44,11 +44,11 @@
 export const MODULOS_FLUJO_EXAMEN = [
   {
     id: 'verificacion_intentos',
-    label: 'Verificación de Intentos',
+    label: 'Verificación Documental e Intentos',
     estado: 'intentos_verificados',
     pct: 15,
     icon: 'clipboard',
-    badge: 'Intentos Verificados',
+    badge: 'Solicitud Verificada',
   },
   {
     id: 'habilitacion_examen',
@@ -161,6 +161,12 @@ const EXAMENES_CONSERVADOS = {
 export const RANGO_NOTA = [0, 100];
 export const NOTA_MINIMA = 51;
 export const MAXIMO_INTENTOS = 3;
+
+/** PDFs que el estudiante adjunta y KARDEX debe verificar antes de los intentos. */
+export const TIPOS_DOCUMENTO_EXAMEN = [
+  { tipo: 'solicitud_examen', etiqueta: 'Solicitud de Examen de Grado' },
+  { tipo: 'certificado_conclusion', etiqueta: 'Certificado de Conclusión de Estudios' },
+];
 
 /**
  * Nota final del Examen de Grado: promedio de las dos notas asignadas.

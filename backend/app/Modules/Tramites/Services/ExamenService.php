@@ -2,6 +2,7 @@
 
 namespace App\Modules\Tramites\Services;
 
+use App\Models\EstadoTramite;
 use App\Models\Estudiante;
 use App\Models\HistorialEstadoExamen;
 use App\Models\Modalidad;
@@ -131,12 +132,13 @@ class ExamenService
      * Presenta la solicitud de Examen de Grado del estudiante.
      *
      * Se comprueba que la modalidad esté activa, que el estudiante no tenga ya
-     * una solicitud en curso y que le queden intentos. El trámite nace en
-     * `solicitud_presentada`, pendiente de la verificación de KARDEX.
+     * una solicitud en curso y que le queden intentos. Los PDF adjuntos se
+     * guardan con el trámite. El trámite nace en `solicitud_presentada`,
+     * pendiente de que KARDEX verifique la documentación y los intentos.
      *
      * @throws \DomainException Si no puede presentarse la solicitud.
      */
-    public function crearSolicitud(User $user): Tramite
+    public function crearSolicitud(User $user, array $documentos = []): Tramite
     {
         $modalidad = Modalidad::query()
             ->where('nombre', TramiteStateService::MODALIDAD_EXAMEN)
@@ -169,8 +171,76 @@ class ExamenService
 
         return $this->tramites->crear([
             'id_modalidad' => (int) $modalidad->id_modalidad,
-            'documentos' => [],
+            'documentos' => $documentos,
         ], $user);
+    }
+
+    public function verificarDocumentos(int $id, array $datos, User $actor): array
+    {
+        $tramite = Tramite::with('modalidad', 'documentos')->findOrFail($id);
+
+        if ($tramite->modalidad->nombre !== TramiteStateService::MODALIDAD_EXAMEN) {
+            throw ValidationException::withMessages([
+                'tramite' => ['La verificación documental solo aplica a la modalidad Examen de Grado.'],
+            ]);
+        }
+
+        if ($tramite->estado_actual !== 'solicitud_presentada') {
+            throw ValidationException::withMessages([
+                'estado_actual' => ['La solicitud ya fue revisada; no es posible acusar la documentación nuevamente.'],
+            ]);
+        }
+
+        $marcados = $datos['documentos'] ?? [];
+        $documentosPorTipo = $tramite->documentos->keyBy('tipo_documento');
+        $errores = [];
+        $registro = [];
+
+        foreach (config('examen.tipos_documento', []) as $tipo => $etiqueta) {
+            if (empty($marcados[$tipo])) {
+                $errores[] = "Marque {$etiqueta} como verificado.";
+                continue;
+            }
+
+            $documento = $documentosPorTipo->get($tipo);
+
+            if ($documento === null) {
+                $errores[] = "Falta el PDF de {$etiqueta}.";
+                continue;
+            }
+
+            $registro[$tipo] = [
+                'marcado' => true,
+                'id_documento' => (int) $documento->id_documento,
+            ];
+        }
+
+        if ($errores !== []) {
+            throw ValidationException::withMessages(['datos' => $errores]);
+        }
+
+        DB::transaction(function () use ($tramite, $registro, $datos, $actor) {
+            $hitos = $tramite->hitos ?? [];
+            $hitos['recepcion_documentos'] = [
+                'verificado' => true,
+                'verificado_en' => Carbon::now()->toIso8601String(),
+                'id_usuario_verifico' => (int) $actor->id_usuario,
+                'observaciones' => $this->opcional($datos['observaciones'] ?? null),
+                'documentos' => $registro,
+            ];
+
+            $tramite->update(['hitos' => $hitos]);
+
+            EstadoTramite::create([
+                'id_tramite' => $tramite->id_tramite,
+                'nombre_estado' => 'solicitud_presentada',
+                'descripcion' => 'Documentación de Examen de Grado verificada por KARDEX',
+                'id_usuario_responsable' => $actor->id_usuario,
+                'observaciones' => $this->opcional($datos['observaciones'] ?? null),
+            ]);
+        });
+
+        return $this->formatear($tramite->refresh()->load('documentos'));
     }
 
     /**
@@ -205,7 +275,7 @@ class ExamenService
             ]);
         }
 
-        $tramite = Tramite::with('modalidad')->findOrFail($id);
+        $tramite = Tramite::with('modalidad', 'documentos')->findOrFail($id);
 
         if ($tramite->modalidad->nombre !== TramiteStateService::MODALIDAD_EXAMEN) {
             throw ValidationException::withMessages([
@@ -220,6 +290,14 @@ class ExamenService
         }
 
         $estudiante = Estudiante::findOrFail($tramite->id_estudiante);
+
+        if ($modulo === 'verificacion_intentos') {
+            $this->asegurarDocumentosVerificados($tramite, $actor);
+
+            if ($this->estadoPostVerificacion($tramite->estado_actual)) {
+                return $this->formatear($tramite);
+            }
+        }
 
         $resolucion = $this->destino($modulo, $datos, $estudiante, $tramite);
 
@@ -430,6 +508,74 @@ class ExamenService
             'nota' => null,
             'observacion' => "Intento {$intentos} de {$maximo}. El estudiante habilita su solicitud de examen de grado.",
         ];
+    }
+
+    private function asegurarDocumentosVerificados(Tramite $tramite, User $actor): void
+    {
+        $recepcion = $tramite->hitos['recepcion_documentos'] ?? null;
+
+        if (($recepcion['verificado'] ?? false) === true) {
+            foreach (config('examen.tipos_documento', []) as $tipo => $etiqueta) {
+                if (($recepcion['documentos'][$tipo]['marcado'] ?? false) !== true) {
+                    throw ValidationException::withMessages([
+                        'documentos' => ["Falta verificar {$etiqueta}."],
+                    ]);
+                }
+            }
+
+            return;
+        }
+
+        $registro = [];
+
+        foreach (config('examen.tipos_documento', []) as $tipo => $etiqueta) {
+            $documento = $tramite->documentos->firstWhere('tipo_documento', $tipo);
+
+            if ($documento === null) {
+                throw ValidationException::withMessages([
+                    'documentos' => ["Falta el PDF de {$etiqueta}."],
+                ]);
+            }
+
+            $registro[$tipo] = [
+                'marcado' => true,
+                'id_documento' => (int) $documento->id_documento,
+            ];
+        }
+
+        $hitos = $tramite->hitos ?? [];
+        $hitos['recepcion_documentos'] = [
+            'verificado' => true,
+            'verificado_en' => Carbon::now()->toIso8601String(),
+            'id_usuario_verifico' => (int) $actor->id_usuario,
+            'observaciones' => 'Verificación registrada desde el módulo de intentos.',
+            'documentos' => $registro,
+        ];
+
+        $tramite->update(['hitos' => $hitos]);
+
+        EstadoTramite::create([
+            'id_tramite' => $tramite->id_tramite,
+            'nombre_estado' => 'solicitud_presentada',
+            'descripcion' => 'Documentación de Examen de Grado verificada desde el módulo de intentos',
+            'id_usuario_responsable' => $actor->id_usuario,
+            'observaciones' => 'Verificación registrada desde el módulo de intentos.',
+        ]);
+    }
+
+    private function estadoPostVerificacion(string $estado): bool
+    {
+        return in_array($estado, [
+            'intentos_verificados',
+            'habilitado_examen',
+            'examen_teorico_sorteado',
+            'examen_teorico_aprobado',
+            'notas_habilitadas',
+            'aprobado',
+            'examen_teorico_reprobado',
+            'examen_especialidad_reprobado',
+            'titulado',
+        ], true);
     }
 
     /**

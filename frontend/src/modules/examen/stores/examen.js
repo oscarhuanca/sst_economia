@@ -13,14 +13,14 @@ export const useExamenStore = defineStore('examen', {
     }),
     actions: {
         /**
-         * Presenta la solicitud de Examen de Grado.
+         * Presenta la solicitud de Examen de Grado con los PDF adjuntos.
          *
          * @returns {Promise<Object>} Trámite creado.
          */
-        async crearSolicitud() {
+        async crearSolicitud(formData) {
             this.enviando = true;
             try {
-                const response = await examenService.crearSolicitud();
+                const response = await examenService.crearSolicitud(formData);
                 this.enviando = false;
                 return response;
             } catch (error) {

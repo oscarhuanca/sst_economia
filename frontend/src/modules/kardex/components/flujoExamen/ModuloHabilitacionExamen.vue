@@ -58,7 +58,7 @@
         <button type="submit" class="btn-warm px-6" :disabled="cargando">
           <AppIcon v-if="cargando" name="loader" :size="18" class="animate-spin" />
           <AppIcon v-else name="shield" :size="18" />
-          <span class="uppercase tracking-wide">Habilitar estudiante</span>
+          <span class="uppercase tracking-wide">Habilitar y continuar</span>
         </button>
       </div>
     </form>

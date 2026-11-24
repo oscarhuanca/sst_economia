@@ -18,11 +18,12 @@ import { formatoEstado, toneEstado } from '../utils/estados';
 const props = defineProps({
   estado: { type: String, required: true },
   upper: { type: Boolean, default: false }, // true para mostrar en mayúsculas.
+  label: { type: String, default: '' },     // Etiqueta del flujo; por defecto se formatea el estado.
 });
 
 const tone = computed(() => toneEstado(props.estado));
 const formato = computed(() => {
-  const t = formatoEstado(props.estado);
+  const t = props.label || formatoEstado(props.estado);
   return props.upper ? t.toUpperCase() : t;
 });
 </script>

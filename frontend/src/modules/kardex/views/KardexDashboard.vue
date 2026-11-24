@@ -22,6 +22,7 @@
         </div>
 
         <div class="ml-auto flex items-center gap-3">
+          <BackToAdminButton />
           <div class="hidden sm:flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-white/5 border border-white/10">
             <Avatar :nombres="authStore.user?.nombres || ''" :apellidos="authStore.user?.apellidos || ''" :size="8" />
             <div class="leading-tight">
@@ -131,6 +132,7 @@ import { useAuthStore } from '@/modules/auth';
 import { useKardexStore } from '@/modules/kardex';
 import { rolLabel } from '@/core/roles';
 import AppIcon from '@/ui/AppIcon.vue';
+import BackToAdminButton from '@/ui/BackToAdminButton.vue';
 import Avatar from '@/ui/Avatar.vue';
 
 const route = useRoute();

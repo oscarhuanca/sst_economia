@@ -371,6 +371,32 @@
         </div>
       </form>
     </UiModal>
+
+    <UiModal v-model="showModalEliminar" title="Confirmar eliminación" max-width="460px">
+      <div class="flex items-start gap-4">
+        <div class="w-12 h-12 rounded-2xl bg-red-500/15 border border-red-500/30 flex items-center justify-center text-red-400 shrink-0">
+          <AppIcon name="alert-triangle" :size="24" />
+        </div>
+        <div>
+          <p class="font-bold text-white">¿Dar de baja a este usuario?</p>
+          <p class="mt-1 text-sm text-slate-400">
+            Se deshabilitará el acceso de
+            <strong class="text-white">{{ usuarioEliminar?.nombres }} {{ usuarioEliminar?.apellidos }}</strong>.
+            Esta acción no se puede deshacer.
+          </p>
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 pt-5">
+        <button type="button" class="btn-ghost px-4 py-2.5" :disabled="eliminando" @click="cancelarEliminacion">
+          Cancelar
+        </button>
+        <button type="button" class="btn-rose px-4 py-2.5" :disabled="eliminando" @click="confirmarEliminacion">
+          <AppIcon v-if="eliminando" name="loader" :size="16" class="animate-spin" />
+          <AppIcon v-else name="trash" :size="16" />
+          Eliminar usuario
+        </button>
+      </div>
+    </UiModal>
   </AppShell>
 </template>
 
@@ -405,6 +431,9 @@ const showModalCrearEstudiante = ref(false);
 const showModalAltaUsuario = ref(false);
 const showModalCrear = ref(false);
 const showModalActualizar = ref(false);
+const showModalEliminar = ref(false);
+const usuarioEliminar = ref(null);
+const eliminando = ref(false);
 const buscar = ref('');
 const filtroRol = ref('');
 const roles = Object.keys(ROLE_LABELS);
@@ -618,13 +647,30 @@ const actualizarUsuario = async () => {
   }
 };
 
-const eliminarUsuario = async (user) => {
-  if (!confirm(`¿Dar de baja a ${user.nombres} ${user.apellidos}? Esta acción deshabilita su acceso.`)) return;
+const eliminarUsuario = (user) => {
+  usuarioEliminar.value = user;
+  showModalEliminar.value = true;
+};
+
+const cancelarEliminacion = () => {
+  showModalEliminar.value = false;
+  usuarioEliminar.value = null;
+};
+
+const confirmarEliminacion = async () => {
+  const user = usuarioEliminar.value;
+  if (!user || eliminando.value) return;
+
+  eliminando.value = true;
   try {
     await usuariosService.eliminar(user.id_usuario);
     await fetchUsers();
+    toastStore.success(`Usuario ${user.nombres} ${user.apellidos} dado de baja correctamente.`);
+    cancelarEliminacion();
   } catch (error) {
     toastStore.error('No se pudo dar de baja al usuario.');
+  } finally {
+    eliminando.value = false;
   }
 };
 </script>

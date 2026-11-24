@@ -42,4 +42,20 @@ return [
 
     'rango_nota' => [0, 100],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Documentos de la solicitud
+    |--------------------------------------------------------------------------
+    |
+    | PDFs que el estudiante adjunta al presentar la solicitud. KARDEX los
+    | recepciona y verifica al acusar el recibo; si no se hizo desde Registro de
+    | Postulante, el módulo 1 registra esa verificación al guardar los intentos.
+    |
+    */
+
+    'tipos_documento' => [
+        'solicitud_examen' => 'Solicitud de Examen de Grado',
+        'certificado_conclusion' => 'Certificado de Conclusión de Estudios',
+    ],
+
 ];

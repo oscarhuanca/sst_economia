@@ -10,6 +10,7 @@ use App\Modules\Tramites\Http\Requests\GuardarModuloFlujoRequest;
 use App\Modules\Tramites\Http\Requests\ReabrirExamenRequest;
 use App\Modules\Tramites\Http\Requests\RevisarTramiteRequest;
 use App\Modules\Tramites\Http\Requests\TransicionarTramiteRequest;
+use App\Modules\Tramites\Http\Requests\VerificarDocumentosExamenRequest;
 use App\Modules\Tramites\Services\ExamenService;
 use App\Modules\Tramites\Services\TramiteService;
 use Illuminate\Http\JsonResponse;
@@ -156,6 +157,17 @@ class TramiteController extends Controller
                 $adjuntos
             ),
             201
+        );
+    }
+
+    public function verificarDocumentosExamen(VerificarDocumentosExamenRequest $request, int $id): JsonResponse
+    {
+        return response()->json(
+            $this->examenService->verificarDocumentos(
+                $id,
+                $request->validated('datos'),
+                $request->user()
+            )
         );
     }
 

@@ -78,9 +78,17 @@ export const ETIQUETAS_DOCUMENTO = {
   nota_solicitud: 'Nota de Solicitud',
   certificado_notas: 'Certificado de Notas',
   carta_solicitud: 'Carta de Solicitud',
+  solicitud_examen: 'Solicitud de Examen de Grado',
   certificado_conclusion: 'Certificado de Conclusión de Estudios',
   perfil_tesis: 'Perfil de Tesis de Grado',
+  perfil_proyecto: 'Perfil de Proyecto',
   documento_final: 'Documento Final',
+  nota_suficiencia_tutor: 'Nota de Suficiencia del Tutor',
+  nota_suficiencia_presidente: 'Nota de Suficiencia del Tribunal 1',
+  nota_suficiencia_vocal: 'Nota de Suficiencia del Tribunal 2',
+  nota_suficiencia_secretario: 'Nota de Suficiencia del Tribunal 3',
+  resolucion_designacion_tutor: 'Resolución de designación de tutor',
+  resolucion_designacion_tribunal: 'Resolución de designación de tribunal revisor',
 };
 
 /**

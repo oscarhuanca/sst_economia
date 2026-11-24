@@ -139,11 +139,13 @@ import { useRoute } from 'vue-router';
 import { useKardexStore } from '@/modules/kardex';
 import { iniciales } from '@/modules/kardex/utils/formato';
 import { esFlujoExamen } from '@/modules/examen/utils/flujoExamen';
+import { useToastStore } from '@/core/stores/toast';
 import AppIcon from '@/ui/AppIcon.vue';
 import EmptyState from '@/ui/EmptyState.vue';
 import FlujoExamen from '../components/flujoExamen/FlujoExamen.vue';
 
 const kardexStore = useKardexStore();
+const toastStore = useToastStore();
 const route = useRoute();
 
 const identificador = ref('');
@@ -160,9 +162,13 @@ const buscar = async () => {
 /** Carga al estudiante indicado desde la alerta del panel general. */
 onMounted(async () => {
   const inicial = String(route.query.identificador || '').trim();
+  const tramiteContexto = String(route.query.tramite || '').trim();
   if (inicial) {
     identificador.value = inicial;
     await buscar();
+    if (tramiteContexto && String(kardexStore.tramite?.id_tramite || '') !== tramiteContexto) {
+      toastStore.warning('Se cargó el trámite más reciente del postulante.');
+    }
   }
 });
 

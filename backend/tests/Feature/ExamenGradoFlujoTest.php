@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\DocumentoAdjunto;
 use App\Models\Estudiante;
 use App\Models\HistorialEstadoExamen;
 use App\Models\Modalidad;
@@ -62,6 +63,103 @@ class ExamenGradoFlujoTest extends TestCase
 
         $this->assertSame('2026-09-01', substr((string) $fila['fecha_resolucion'], 0, 10));
         $this->assertNull($fila['fecha_examen']);
+    }
+
+    public function test_kardex_verifica_los_pdf_y_pasa_al_modulo_de_intentos(): void
+    {
+        $tramite = $this->crearTramiteExamen(documentosVerificados: false);
+        $kardex = $this->crearUsuarioGestion();
+        $documentos = [];
+
+        foreach (config('examen.tipos_documento') as $tipo => $etiqueta) {
+            $documentos[$tipo] = true;
+        }
+
+        $respuesta = $this->actingAs($kardex)
+            ->postJson("/api/tramites/{$tramite->id_tramite}/examen/recepcion-documentos", [
+                'datos' => ['documentos' => $documentos, 'observaciones' => 'PDF cotejados con el físico.'],
+            ])
+            ->assertOk();
+
+        $this->assertSame(200, $respuesta->status());
+        $this->assertSame('solicitud_presentada', $tramite->refresh()->estado_actual);
+        $this->assertTrue($tramite->hitos['recepcion_documentos']['verificado']);
+        $this->assertSame($kardex->id_usuario, $tramite->hitos['recepcion_documentos']['id_usuario_verifico']);
+        $this->assertSame('PDF cotejados con el físico.', $tramite->hitos['recepcion_documentos']['observaciones']);
+
+        $this->modulo($kardex, $tramite, 'verificacion_intentos', ['accion' => 'aprobar'])
+            ->assertCreated();
+
+        $this->assertSame('intentos_verificados', $tramite->refresh()->estado_actual);
+    }
+
+    public function test_la_verificacion_de_intentos_registra_la_recepcion_de_pdf_si_falta(): void
+    {
+        $tramite = $this->crearTramiteExamen(documentosVerificados: false);
+        $kardex = $this->crearUsuarioGestion();
+
+        $respuesta = $this->modulo($kardex, $tramite, 'verificacion_intentos', ['accion' => 'aprobar'])
+            ->assertCreated();
+
+        $tramite->refresh();
+        $this->assertSame('intentos_verificados', $tramite->estado_actual);
+        $this->assertTrue($tramite->hitos['recepcion_documentos']['verificado']);
+        $this->assertSame($kardex->id_usuario, $tramite->hitos['recepcion_documentos']['id_usuario_verifico']);
+        $this->assertSame(
+            'Verificación registrada desde el módulo de intentos.',
+            $tramite->hitos['recepcion_documentos']['observaciones'],
+        );
+
+        foreach (array_keys(config('examen.tipos_documento')) as $tipo) {
+            $this->assertTrue($tramite->hitos['recepcion_documentos']['documentos'][$tipo]['marcado']);
+        }
+
+        $fila = collect($respuesta->json('historial_examen'))
+            ->firstWhere('etapa', 'verificacion_intentos');
+
+        $this->assertSame('verificado', $fila['resultado']);
+    }
+
+    public function test_verificar_intentos_dos_veces_no_repite_la_transicion(): void
+    {
+        $tramite = $this->crearTramiteExamen();
+        $kardex = $this->crearUsuarioGestion();
+
+        $this->modulo($kardex, $tramite, 'verificacion_intentos', ['accion' => 'aprobar'])
+            ->assertCreated();
+
+        $this->modulo($kardex, $tramite, 'verificacion_intentos', ['accion' => 'aprobar'])
+            ->assertCreated();
+
+        $this->assertSame('intentos_verificados', $tramite->refresh()->estado_actual);
+        $this->assertCount(1, $tramite->historialExamen()->where('etapa', 'verificacion_intentos')->get());
+    }
+
+    public function test_la_verificacion_de_intentos_falla_si_faltan_los_pdf(): void
+    {
+        $tramite = $this->crearTramiteExamen(documentosVerificados: false);
+        $tramite->documentos()->delete();
+        $kardex = $this->crearUsuarioGestion();
+
+        $this->modulo($kardex, $tramite, 'verificacion_intentos', ['accion' => 'aprobar'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('documentos');
+
+        $this->assertSame('solicitud_presentada', $tramite->refresh()->estado_actual);
+    }
+
+    public function test_no_se_pueden_verificar_pdf_sin_todos_los_tipos_requeridos(): void
+    {
+        $tramite = $this->crearTramiteExamen(documentosVerificados: false);
+        $kardex = $this->crearUsuarioGestion();
+        $tipos = array_keys(config('examen.tipos_documento'));
+
+        $this->actingAs($kardex)
+            ->postJson("/api/tramites/{$tramite->id_tramite}/examen/recepcion-documentos", [
+                'datos' => ['documentos' => [$tipos[0] => true]],
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('datos');
     }
 
     public function test_la_habilitacion_exige_el_numero_de_resolucion(): void
@@ -1137,15 +1235,47 @@ class ExamenGradoFlujoTest extends TestCase
         ])->assertCreated();
     }
 
-    private function crearTramiteExamen(?Estudiante $estudiante = null): Tramite
+    private function crearTramiteExamen(?Estudiante $estudiante = null, bool $documentosVerificados = true): Tramite
     {
         $estudiante ??= $this->crearEstudianteConCuenta();
+        $idUsuario = $estudiante->user?->id_usuario ?? User::factory()->create()->id_usuario;
 
-        return Tramite::factory()->create([
+        $tramite = Tramite::factory()->create([
             'id_estudiante' => $estudiante->id_estudiante,
             'id_modalidad' => Modalidad::factory()->examen()->create()->id_modalidad,
             'estado_actual' => 'solicitud_presentada',
         ]);
+
+        $hitos = [];
+
+        foreach (config('examen.tipos_documento') as $tipo => $etiqueta) {
+            $documento = DocumentoAdjunto::create([
+                'id_tramite' => $tramite->id_tramite,
+                'id_usuario_subio' => $idUsuario,
+                'tipo_documento' => $tipo,
+                'nombre_archivo' => "{$tipo}.pdf",
+                'ruta_archivo' => "documentos_tramites/{$tipo}.pdf",
+                'tamanio_kb' => 100,
+            ]);
+
+            if ($documentosVerificados) {
+                $hitos[$tipo] = ['marcado' => true, 'id_documento' => $documento->id_documento];
+            }
+        }
+
+        if ($documentosVerificados) {
+            $tramite->update(['hitos' => [
+                'recepcion_documentos' => [
+                    'verificado' => true,
+                    'verificado_en' => Carbon::now()->toIso8601String(),
+                    'id_usuario_verifico' => $idUsuario,
+                    'observaciones' => null,
+                    'documentos' => $hitos,
+                ],
+            ]]);
+        }
+
+        return $tramite;
     }
 
     private function crearEstudiante(?int $numero_intentos = null): Estudiante

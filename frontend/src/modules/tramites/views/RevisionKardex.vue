@@ -1,5 +1,7 @@
 <template>
   <AppShell title="Trámites de Titulación" :subtitle="subtituloVista">
+    <BackToAdminButton class="mb-4" />
+
     <div id="seccion-estadisticas" class="scroll-mt-28">
       <div v-if="!soloConcluidos" class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard label="Trámites en Proceso" :value="tramitesStore.tramitesPendientes.length" icon="folder" tone="amber" />
@@ -59,12 +61,12 @@
                           {{ tramite.estudiante.user.nombres }} {{ tramite.estudiante.user.apellidos }}
                         </p>
                         <p class="text-xs text-slate-400">
-                          Cod: {{ tramite.estudiante.registro_universitario }} · Promedio: {{ tramite.estudiante.promedio_global }}
+                          R.U.: {{ tramite.estudiante.registro_universitario || '—' }} · C.I.: {{ tramite.estudiante.ci || '—' }}
                         </p>
                       </div>
                     </div>
                   </div>
-                  <EstadoBadge :estado="tramite.estado_actual" />
+                  <EstadoBadge :estado="tramite.estado_actual" :label="resumen(tramite).badge" />
                 </div>
 
                 <div v-if="tramite.estado_actual === 'solicitud_fecha_defensa' && tramite.hitos?.fecha_defensa_solicitada"
@@ -78,7 +80,7 @@
                 </div>
 
                 <div class="mt-4 space-y-1.5 text-sm">
-                  <div class="flex items-center gap-2 text-slate-300">
+                  <div v-if="resumen(tramite).conTutor" class="flex items-center gap-2 text-slate-300">
                     <AppIcon name="user-check" :size="14" class="text-slate-400 shrink-0" />
                     <span class="text-slate-400 font-medium">Tutor:</span>
                     <span v-if="tramite.tutor">{{ tramite.tutor.nombres }} {{ tramite.tutor.apellidos }}</span>
@@ -87,12 +89,34 @@
                   <div class="flex items-center gap-2 text-slate-300">
                     <AppIcon name="trending-up" :size="14" class="text-slate-400 shrink-0" />
                     <span class="text-slate-400 font-medium">Progreso:</span>
-                    <span class="font-bold text-orange-300">{{ progresoEstado(tramite) }}%</span>
+                    <span class="font-bold text-orange-300">{{ resumen(tramite).pct }}%</span>
+                  </div>
+                  <div class="flex items-center gap-2 text-slate-300">
+                    <AppIcon name="chevron-right" :size="14" class="text-slate-400 shrink-0" />
+                    <span class="text-slate-400 font-medium">Etapa:</span>
+                    <span class="font-semibold text-slate-200">{{ resumen(tramite).etapa }}</span>
                   </div>
                 </div>
 
                 <div class="mt-3 flex-1">
-                  <ProgressBar :value="progresoEstado(tramite)" />
+                  <ProgressBar :value="resumen(tramite).pct" />
+                </div>
+
+                <div v-if="tab === 'concluidos' && resumen(tramite).modulos.length" class="mt-4">
+                  <p class="text-xs font-bold uppercase tracking-wide text-slate-400 mb-2">Etapas del flujo</p>
+                  <ul class="space-y-1.5">
+                    <li class="flex items-center justify-between gap-2 text-xs rounded-lg bg-white/5 border border-white/10 px-2.5 py-1.5">
+                      <span class="font-semibold text-slate-200">Solicitud Presentada</span>
+                      <span class="font-semibold text-emerald-300 text-right">Completado</span>
+                    </li>
+                    <li v-for="modulo in resumen(tramite).modulos" :key="modulo.id"
+                        class="flex items-center justify-between gap-2 text-xs rounded-lg bg-white/5 border border-white/10 px-2.5 py-1.5">
+                      <span class="font-semibold text-slate-200">{{ modulo.label }}</span>
+                      <span class="font-semibold text-right" :class="modulo.completado ? 'text-emerald-300' : 'text-slate-500'">
+                        {{ modulo.completado ? modulo.badge : (modulo.enProgreso ? 'En curso' : 'Pendiente') }}
+                      </span>
+                    </li>
+                  </ul>
                 </div>
 
                 <div class="mt-4 flex flex-wrap gap-1.5">
@@ -172,11 +196,13 @@ import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/modules/auth';
 import { useTramitesStore } from '../stores/tramites';
 import { useToastStore } from '@/core/stores/toast';
-import { progresoEstado, etiquetaDocumento } from '../utils/estados';
+import { etiquetaDocumento } from '../utils/estados';
+import { resumenFlujo } from '../utils/flujoListado';
 import { assetUrl } from '@/core/http/storage';
 import { ROLES_GESTION, perteneceRol } from '@/core/roles';
 import { AppShell } from '@/modules/layout';
 import AppIcon from '@/ui/AppIcon.vue';
+import BackToAdminButton from '@/ui/BackToAdminButton.vue';
 import Avatar from '@/ui/Avatar.vue';
 import EstadoBadge from '../components/EstadoBadge.vue';
 import StatCard from '@/ui/StatCard.vue';
@@ -231,6 +257,12 @@ const sinTutor = computed(() => tramitesStore.tramitesPendientes.filter((t) => !
 const listaActual = computed(() =>
   tab.value === 'concluidos' ? tramitesStore.tramitesConcluidos : tramitesStore.tramitesPendientes
 );
+
+// Avance y nombres del flujo de cada modalidad (los mismos de sus flujos).
+const resumenes = computed(() => new Map(
+  listaActual.value.map((t) => [t.id_tramite, resumenFlujo(t)]),
+));
+const resumen = (tramite) => resumenes.value.get(tramite.id_tramite);
 
 // Filtra los trámites por estudiante, código, modalidad o estado.
 const filtrados = computed(() => {

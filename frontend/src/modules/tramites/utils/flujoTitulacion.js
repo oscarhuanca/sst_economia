@@ -338,11 +338,12 @@ export function flujoConcluido(tramite) {
   return ['titulado', 'aprobado'].includes(tramite?.estado_actual);
 }
 
-// Etiquetas legibles de los roles del tribunal revisor.
-const ETIQUETAS_ROL_TRIBUNAL = {
-  presidente: 'Presidente',
-  vocal: 'Vocal',
-  secretario: 'Secretario',
+// Etiquetas legibles de los roles del tribunal revisor. Las claves internas se
+// mantienen (las guarda el backend), pero en pantalla se numeran los puestos.
+export const ETIQUETAS_ROL_TRIBUNAL = {
+  presidente: 'Tribunal 1',
+  vocal: 'Tribunal 2',
+  secretario: 'Tribunal 3',
 };
 
 /** Convierte una fecha ISO (YYYY-MM-DD o ISO completa) a texto legible local. */
@@ -615,11 +616,11 @@ export function validarModulo(moduloId, datos = {}, modalidad = null) {
       if (!val(datos.numero_resolucion)) errores.push('Ingrese el número de Resolución del HCC.');
       if (!val(datos.fecha_resolucion)) errores.push('Seleccione la fecha de la Resolución.');
       if (!Array.isArray(datos.tribunal) || datos.tribunal.length < ROLES_TRIBUNAL.length) {
-        errores.push('Complete los miembros del tribunal revisor (Presidente, Vocal y Secretario).');
+        errores.push('Complete los miembros del tribunal revisor (Tribunal 1, Tribunal 2 y Tribunal 3).');
       } else {
         ROLES_TRIBUNAL.forEach((rol) => {
           const miembro = datos.tribunal.find((t) => t.rol === rol);
-          const etiquetaRol = rol.charAt(0).toUpperCase() + rol.slice(1);
+          const etiquetaRol = ETIQUETAS_ROL_TRIBUNAL[rol] || rol;
           if (!miembro || !val(miembro.nombre)) {
             errores.push(`Complete el nombre del ${etiquetaRol}.`);
           }

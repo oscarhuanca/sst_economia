@@ -33,9 +33,10 @@ Route::middleware(['auth:sanctum', 'role:'.implode(',', Roles::GESTION)])->group
     Route::post('/tramites/{id}/transicionar', [TramiteController::class, 'transicionar']);
     Route::post('/tramites/{id}/flujo/{modulo}', [TramiteController::class, 'guardarModuloFlujo']);
 
-    // Flujo de Examen de Grado (KARDEX). IMPORTANTE: la ruta estática
-    // /examen/reabrir se declara ANTES de /examen/{modulo} para que el
-    // comodín no la capture como si "reabrir" fuera el nombre de un módulo.
+    // Flujo de Examen de Grado (KARDEX). IMPORTANTE: las rutas estáticas se
+    // declaran ANTES de /examen/{modulo} para que el comodín no las capture
+    // como si fueran el nombre de un módulo.
+    Route::post('/tramites/{id}/examen/recepcion-documentos', [TramiteController::class, 'verificarDocumentosExamen']);
     Route::post('/tramites/{id}/examen/reabrir', [TramiteController::class, 'reabrirExamen']);
     Route::post('/tramites/{id}/examen/{modulo}', [TramiteController::class, 'guardarModuloExamen']);
 });

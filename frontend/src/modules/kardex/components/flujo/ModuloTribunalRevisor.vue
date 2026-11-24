@@ -401,7 +401,7 @@
                   v-model="miembro.nombre"
                   type="text"
                   class="input flex-1"
-                  :placeholder="`Nombre del ${miembro.rol} del tribunal...`"
+                  :placeholder="`Nombre del ${etiquetaRol(miembro.rol)}...`"
                 />
               </div>
 
@@ -477,7 +477,7 @@
 
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
-import { ROLES_TRIBUNAL, validarModulo } from '@/modules/tramites/utils/flujoTitulacion';
+import { ETIQUETAS_ROL_TRIBUNAL, ROLES_TRIBUNAL, validarModulo } from '@/modules/tramites/utils/flujoTitulacion';
 import { fechaLegible } from '@/modules/kardex/utils/formato';
 import { assetUrl } from '@/core/http/storage';
 import AppIcon from '@/ui/AppIcon.vue';
@@ -503,15 +503,8 @@ function confirmado(valor) {
 
 const esTesis = computed(() => props.config?.nombre === 'Tesis de Grado');
 
-const ETIQUETAS_TRIBUNAL_TESIS = {
-  presidente: 'Tribunal 1',
-  vocal: 'Tribunal 2',
-  secretario: 'Tribunal 3',
-};
-
 function etiquetaRol(rol) {
-  if (esTesis.value && ETIQUETAS_TRIBUNAL_TESIS[rol]) return ETIQUETAS_TRIBUNAL_TESIS[rol];
-  return rol ? rol.charAt(0).toUpperCase() + rol.slice(1) : '';
+  return ETIQUETAS_ROL_TRIBUNAL[rol] || (rol ? rol.charAt(0).toUpperCase() + rol.slice(1) : '');
 }
 
 function nombreCompletoDocente(doc) {

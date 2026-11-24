@@ -7,7 +7,7 @@
       </p>
       <button class="btn-ghost" @click="volver">
         <AppIcon name="arrow-left" :size="16" />
-        {{ esDocente ? 'Ir a Mis Tutorías' : 'Volver a Trámites' }}
+        Volver atrás
       </button>
     </div>
 
@@ -21,7 +21,7 @@
       <p class="text-white font-semibold">{{ errorCarga }}</p>
       <button class="btn-ghost mt-4" @click="volver">
         <AppIcon name="arrow-left" :size="16" />
-        Volver
+        Volver atrás
       </button>
     </div>
 
@@ -44,12 +44,12 @@
         </div>
         <dl class="mt-4 grid grid-cols-2 gap-3 text-sm">
           <div class="rounded-xl bg-white/5 border border-white/10 p-3">
-            <dt class="text-xs text-slate-400 font-semibold uppercase">Código</dt>
-            <dd class="font-semibold text-white">{{ tramite.estudiante.registro_universitario }}</dd>
+            <dt class="text-xs text-slate-400 font-semibold uppercase">R.U.</dt>
+            <dd class="font-semibold text-white">{{ tramite.estudiante.registro_universitario || '—' }}</dd>
           </div>
           <div class="rounded-xl bg-white/5 border border-white/10 p-3">
-            <dt class="text-xs text-slate-400 font-semibold uppercase">Promedio</dt>
-            <dd class="font-semibold text-white">{{ tramite.estudiante.promedio_global ?? '—' }}</dd>
+            <dt class="text-xs text-slate-400 font-semibold uppercase">C.I.</dt>
+            <dd class="font-semibold text-white">{{ tramite.estudiante.ci || '—' }}</dd>
           </div>
           <div class="rounded-xl bg-white/5 border border-white/10 p-3">
             <dt class="text-xs text-slate-400 font-semibold uppercase">Email</dt>
@@ -358,11 +358,16 @@ onMounted(async () => {
   await cargarTramite();
 });
 
-/** Regresa a la vista principal según el rol del usuario. */
+/** Regresa al nivel inmediato anterior; si no hay historial, vuelve al listado del rol. */
 const volver = () => {
-  if (esDocente.value) return router.push('/docente');
-  if (authStore.user?.rol === 'admin') return router.push('/admin');
-  router.push('/kardex/tramites');
+  const anterior = router.options.history.state.back;
+
+  if (typeof anterior === 'string' && anterior.startsWith('/')) {
+    router.back();
+    return;
+  }
+
+  router.push(esDocente.value ? '/docente' : '/kardex/tramites');
 };
 
 /** Asigna el tutor seleccionado al trámite vía POST /api/tramites/{id}/asignar-tutor. */

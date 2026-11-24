@@ -26,7 +26,8 @@ class ExamenSolicitudController extends Controller
     public function store(CrearSolicitudExamenRequest $request): JsonResponse
     {
         try {
-            $tramite = $this->examenService->crearSolicitud($request->user());
+            $documentos = $request->validated()['documentos'] ?? [];
+            $tramite = $this->examenService->crearSolicitud($request->user(), $documentos);
 
             return response()->json($tramite, 201);
         } catch (\DomainException $e) {

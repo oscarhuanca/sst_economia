@@ -1,7 +1,7 @@
 <template>
   <ModuloTarjeta
     numero="1"
-    titulo="Verificación de Intentos"
+    titulo="Verificación Documental e Intentos"
     :descripcion="descripcion"
     icono="clipboard"
     :completado="completado"
@@ -27,6 +27,12 @@
       <p v-else-if="registro.observaciones" class="text-sm text-slate-300 leading-relaxed">
         {{ registro.observaciones }}
       </p>
+      <div class="flex justify-end">
+        <button type="button" class="btn-warm px-5" @click="emit('continuar')">
+          <AppIcon name="chevron-right" :size="18" />
+          <span class="uppercase tracking-wide">Continuar a habilitación</span>
+        </button>
+      </div>
     </div>
 
     <div v-else-if="bloqueado" class="aviso-bloqueo">
@@ -35,6 +41,51 @@
     </div>
 
     <form v-else class="space-y-5" @submit.prevent="guardar">
+      <div class="rounded-xl bg-white/5 border border-white/10 p-4">
+        <p class="text-xs uppercase tracking-wide text-slate-400 font-semibold">1. Documentación recepcionada</p>
+        <p class="dato-ayuda mt-1">
+          {{ documentosVerificados
+            ? 'KARDEX verificó estos PDF al recepcionar el trámite. Ahora confirme los intentos.'
+            : 'Los PDF se verificarán automáticamente al guardar la revisión de intentos.' }}
+        </p>
+        <span
+          class="mt-2 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide"
+          :class="documentosVerificados
+            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+            : 'border-amber-500/30 bg-amber-500/10 text-amber-300'"
+        >
+          <AppIcon :name="documentosVerificados ? 'check-circle' : 'clock'" :size="12" />
+          {{ documentosVerificados ? 'Documentación verificada' : 'Se verificará al guardar' }}
+        </span>
+        <div v-if="!documentos.length" class="mt-3 text-sm text-slate-400">
+          El trámite no registra PDFs adjuntos. La recepción documental se gestiona en Registro de Postulante.
+        </div>
+        <div v-else class="mt-3 space-y-2">
+          <div v-for="doc in TIPOS_DOCUMENTO_EXAMEN" :key="doc.tipo" class="flex flex-wrap items-center gap-3 rounded-lg bg-white/5 px-3 py-2.5">
+            <AppIcon name="file-text" :size="16" class="shrink-0 text-orange-300" />
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-semibold text-white">{{ etiquetaDocumento(doc.tipo) }}</p>
+              <p v-if="archivoDe(doc.tipo)" class="text-xs text-slate-400 truncate">
+                {{ archivoDe(doc.tipo).nombre_archivo }}
+              </p>
+              <p v-else class="text-xs text-slate-500">Sin archivo registrado</p>
+            </div>
+            <a
+              v-if="archivoDe(doc.tipo)?.ruta_archivo"
+              :href="assetUrl(archivoDe(doc.tipo).ruta_archivo)"
+              target="_blank"
+              rel="noopener"
+              class="inline-flex items-center gap-1.5 text-xs font-semibold text-orange-300 hover:text-orange-200"
+            >
+              <AppIcon name="file-text" :size="14" />
+              Ver PDF
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <p class="text-xs uppercase tracking-wide text-slate-400 font-semibold">2. Verificación de intentos</p>
+
       <!-- Contador de intentos: es la información que KARDEX necesita para decidir. -->
       <div class="grid sm:grid-cols-3 gap-2.5">
         <div class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
@@ -121,7 +172,7 @@
           <AppIcon v-if="cargando" name="loader" :size="18" class="animate-spin" />
           <AppIcon v-else name="clipboard" :size="18" />
           <span class="uppercase tracking-wide">
-            {{ accion === 'rechazar' ? 'Rechazar solicitud' : 'Verificar intentos' }}
+            {{ accion === 'rechazar' ? 'Rechazar solicitud' : 'Verificar e ir a habilitación' }}
           </span>
         </button>
       </div>
@@ -131,7 +182,9 @@
 
 <script setup>
 import { computed, reactive, ref } from 'vue';
-import { MAXIMO_INTENTOS, validarModulo } from '@/modules/examen/utils/flujoExamen';
+import { MAXIMO_INTENTOS, TIPOS_DOCUMENTO_EXAMEN, validarModulo } from '@/modules/examen/utils/flujoExamen';
+import { etiquetaDocumento } from '@/modules/tramites/utils/estados';
+import { assetUrl } from '@/core/http/storage';
 import AppIcon from '@/ui/AppIcon.vue';
 import ModuloTarjeta from '../flujo/ModuloTarjeta.vue';
 
@@ -142,10 +195,12 @@ const props = defineProps({
   cargando: { type: Boolean, default: false },
   intentos: { type: Number, default: 0 },
   maximo: { type: Number, default: MAXIMO_INTENTOS },
+  documentos: { type: Array, default: () => [] },
+  documentosVerificados: { type: Boolean, default: false },
   registro: { type: Object, default: null },
 });
 
-const emit = defineEmits(['guardar']);
+const emit = defineEmits(['guardar', 'continuar']);
 
 const form = reactive({ observaciones: '' });
 const errores = ref([]);
@@ -156,11 +211,16 @@ const restantes = computed(() => Math.max(0, props.maximo - usados.value));
 const agotados = computed(() => usados.value >= props.maximo);
 const aprobado = computed(() => props.registro?.resultado === 'verificado');
 const descripcion = computed(() =>
-  `Cada postulación o reapertura consume un intento. Con ${props.maximo} o más la solicitud se rechaza.`,
+  `La documentación fue recepcionada en Registro de Postulante. Revise los intentos: cada postulación consume uno; con ${props.maximo} o más se rechaza.`,
 );
 
+const archivoDe = (tipo) => props.documentos.find((doc) => doc.tipo_documento === tipo) || null;
+
 function guardar() {
-  const datos = { accion: accion.value, observaciones: form.observaciones.trim() };
+  const datos = {
+    accion: accion.value,
+    observaciones: form.observaciones.trim(),
+  };
   const res = validarModulo('verificacion_intentos', datos, {
     intentos: usados.value,
     maximo: props.maximo,

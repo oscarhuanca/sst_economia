@@ -83,6 +83,11 @@ export const kardexService = {
 
         return http.post(`/tramites/${id}/flujo/${modulo}`, formData);
     },
+    verificarDocumentosExamen(id, documentos, observaciones = '') {
+        return http.post(`/tramites/${id}/examen/recepcion-documentos`, {
+            datos: { documentos, observaciones },
+        });
+    },
     /**
      * Guarda un módulo del flujo de Examen de Grado.
      *

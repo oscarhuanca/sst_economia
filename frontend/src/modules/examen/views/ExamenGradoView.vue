@@ -79,8 +79,8 @@
             <div>
               <h2 class="text-lg font-extrabold text-white">Solicitud de Examen de Grado</h2>
               <p class="text-sm text-slate-400">
-                Presenta tu solicitud; KARDEX verificará tus intentos, registrará la
-                Resolución del HCC y acompañará el sorteo y la asignación de notas.
+                Selecciona la modalidad y adjunta la solicitud y el certificado de conclusión en PDF.
+                KARDEX verificará tus documentos, revisará tus intentos y registrará la Resolución del HCC.
               </p>
             </div>
           </div>
@@ -104,10 +104,42 @@
             </p>
           </div>
 
+          <div class="mt-7 space-y-4">
+            <div class="rounded-xl bg-white/5 ring-1 ring-white/10 p-4">
+              <p class="text-xs uppercase tracking-wide text-slate-400 font-semibold">1. Modalidad</p>
+              <select v-model="modalidadElegida" class="input mt-2" :disabled="examenStore.enviando">
+                <option value="" disabled>Seleccione la modalidad deseada</option>
+                <option value="Examen de Grado">Examen de Grado</option>
+              </select>
+            </div>
+
+            <div v-if="modalidadSeleccionada" class="rounded-xl bg-white/5 ring-1 ring-white/10 p-4">
+              <p class="text-xs uppercase tracking-wide text-slate-400 font-semibold">2. Documentos en PDF</p>
+              <p class="text-xs text-slate-400 mt-1">
+                Adjunta la solicitud y el certificado de conclusión de estudios. KARDEX los verificará antes de revisar tus intentos.
+              </p>
+              <div class="mt-3 grid sm:grid-cols-2 gap-3">
+                <label v-for="doc in TIPOS_DOCUMENTO_EXAMEN" :key="doc.tipo" class="block">
+                  <span class="label">{{ doc.etiqueta }} (PDF)</span>
+                  <input
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    class="input"
+                    :disabled="examenStore.enviando"
+                    @change="documentos[doc.tipo] = $event.target.files[0]"
+                  >
+                  <span v-if="documentos[doc.tipo]" class="mt-1 block text-xs text-emerald-300 truncate">
+                    {{ documentos[doc.tipo].name }}
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+
           <form class="mt-7 flex flex-wrap items-center justify-between gap-3" @submit.prevent="enviarSolicitud">
             <p class="text-xs text-slate-400 inline-flex items-center gap-1.5">
               <AppIcon name="info" :size="14" />
-              Al enviar, tu trámite queda pendiente de la verificación de KARDEX.
+              {{ documentosCompletos ? 'Al enviar, tu trámite queda pendiente de la verificación de KARDEX.' : 'Seleccione la modalidad y adjunte ambos PDF para continuar.' }}
             </p>
             <button
               type="submit"
@@ -116,7 +148,7 @@
             >
               <AppIcon v-if="examenStore.enviando" name="loader" :size="15" class="animate-spin" />
               <AppIcon v-else name="send" :size="15" />
-              {{ examenStore.enviando ? 'Enviando...' : 'Enviar Solicitud' }}
+              {{ examenStore.enviando ? 'Enviando...' : 'Solicitar' }}
             </button>
           </form>
         </div>
@@ -141,7 +173,13 @@ import { AppShell } from '@/modules/layout';
 import AppIcon from '@/ui/AppIcon.vue';
 import SeguimientoExamenGrado from '@/modules/estudiantes/components/SeguimientoExamenGrado.vue';
 import { useExamenStore } from '../stores/examen';
-import { MAXIMO_INTENTOS, esFlujoExamen, intentosUsados, intentosRestantes } from '../utils/flujoExamen';
+import {
+  MAXIMO_INTENTOS,
+  TIPOS_DOCUMENTO_EXAMEN,
+  esFlujoExamen,
+  intentosUsados,
+  intentosRestantes,
+} from '../utils/flujoExamen';
 
 const tramitesStore = useTramitesStore();
 const estudianteStore = useEstudianteStore();
@@ -150,8 +188,11 @@ const toastStore = useToastStore();
 
 const cargando = ref(true);
 const maximo = MAXIMO_INTENTOS;
+const modalidadElegida = ref('');
+const documentos = ref({ solicitud_examen: null, certificado_conclusion: null });
 
 const FASES_EXAMEN = [
+  { id: 'documentos', label: 'Verificación documental', icon: 'file-text' },
   { id: 'intentos', label: 'Verificación de intentos', icon: 'clipboard' },
   { id: 'habilitacion', label: 'Habilitación HCC', icon: 'shield' },
   { id: 'examenes', label: 'Sorteo y asignación de notas', icon: 'award' },
@@ -168,10 +209,14 @@ const otroTramiteEnCurso = computed(
 const usados = computed(() => intentosUsados(tramite.value));
 const restantes = computed(() => intentosRestantes(tramite.value));
 const sinIntentos = computed(() => esExamen.value && restantes.value === 0);
+const modalidadSeleccionada = computed(() => modalidadElegida.value === 'Examen de Grado');
+const documentosCompletos = computed(() => TIPOS_DOCUMENTO_EXAMEN.every(({ tipo }) => Boolean(documentos.value[tipo])));
 const puedeSolicitar = computed(
   () => !examenEnCurso.value
     && !otroTramiteEnCurso.value
     && !sinIntentos.value
+    && modalidadSeleccionada.value
+    && documentosCompletos.value
     && !(esExamen.value && tramite.value?.estado_actual === 'titulado'),
 );
 
@@ -188,9 +233,18 @@ function detalleDeError(error, defecto) {
 /** Presenta la solicitud y refresca el trámite activo para mostrar su seguimiento. */
 async function enviarSolicitud() {
   if (!puedeSolicitar.value) return;
+
+  const formData = new FormData();
+  TIPOS_DOCUMENTO_EXAMEN.forEach(({ tipo }, index) => {
+    formData.append(`documentos[${index}][archivo]`, documentos.value[tipo]);
+    formData.append(`documentos[${index}][tipo]`, tipo);
+  });
+
   try {
-    await examenStore.crearSolicitud();
-    toastStore.success('Solicitud enviada. Queda pendiente de la verificación de KARDEX.');
+    await examenStore.crearSolicitud(formData);
+    toastStore.success('Solicitud enviada. KARDEX verificará tus documentos y tus intentos.');
+    documentos.value = { solicitud_examen: null, certificado_conclusion: null };
+    modalidadElegida.value = '';
     await tramitesStore.cargarTramiteActivo();
   } catch (error) {
     toastStore.error('Error al enviar: ' + detalleDeError(error, 'Verifique los datos'));

@@ -1,5 +1,7 @@
 <template>
   <AppShell title="Registro de Docentes" subtitle="Docentes de la carrera y materias que imparten">
+    <BackToAdminButton class="mb-4" />
+
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       <StatCard label="Total Docentes" :value="docentes.length" icon="user-check" tone="amber" />
       <StatCard label="Con Materia Asignada" :value="conMateria" icon="book" tone="rose" />
@@ -150,6 +152,7 @@ import { docentesService } from '../services/docentes';
 import { useToastStore } from '@/core/stores/toast';
 import { AppShell } from '@/modules/layout';
 import AppIcon from '@/ui/AppIcon.vue';
+import BackToAdminButton from '@/ui/BackToAdminButton.vue';
 import Avatar from '@/ui/Avatar.vue';
 import StatCard from '@/ui/StatCard.vue';
 import UiModal from '@/ui/UiModal.vue';
