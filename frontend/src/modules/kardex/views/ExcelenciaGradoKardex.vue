@@ -8,7 +8,7 @@
       <div>
         <h2 class="text-2xl font-bold text-white uppercase">Excelencia Académica</h2>
         <p class="text-sm text-slate-400 mt-0.5">
-          Verifique y admita la solicitud con Resolución del HCC, registre la lectura del acta y emita el acta de titulación.
+          Registre la designación del tribunal, su informe de evaluación, la lectura del acta y emita el acta de titulación.
         </p>
       </div>
     </div>
@@ -56,7 +56,7 @@
       v-if="!kardexStore.postulante && !kardexStore.errorMessage"
       icon="search"
       title="Consultar el flujo de Excelencia Académica"
-      message="Filtre por Cédula de Identidad o Registro Universitario para verificar el promedio, admitir la solicitud y registrar la lectura del acta."
+      message="Filtre por Cédula de Identidad o Registro Universitario para designar al tribunal, registrar su informe y la lectura del acta."
     />
 
     <template v-if="kardexStore.postulante">
@@ -110,25 +110,17 @@
         Excelencia Académica; use el módulo correspondiente a su modalidad.
       </div>
 
-      <FlujoExcelencia v-else :tramite="kardexStore.tramite" />
+      <FlujoExcelencia v-else :tramite="kardexStore.tramite" :docentes="docentes" />
     </template>
   </div>
 </template>
 
 <script setup>
-// Módulo del Dashboard de KARDEX: Excelencia Académica.
-//
-// Aquí no hay tutor, tribunal ni defensa: el estudiante se titula por su
-// promedio sobresaliente. El flujo son tres tarjetas secuenciales (verificación
-// y admisión con Resolución del HCC, Resolución con lectura del acta y reporte
-// final). La verificación es la única bifurcación: KARDEX acepta o rechaza la
-// solicitud mediante Resolución; si rechaza, el trámite termina ahí.
-//
-// A diferencia del Examen de Grado, el flujo es estrictamente lineal: el estado
-// actual del trámite es la fuente de verdad del avance.
 import { computed, ref, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useKardexStore } from '@/modules/kardex';
+import { useTramitesStore } from '@/modules/tramites';
+import { DOCENTES_MOCK } from '@/modules/kardex/mock/data';
 import { iniciales } from '@/modules/kardex/utils/formato';
 import { esFlujoExcelencia } from '@/modules/excelencia/utils/flujoExcelencia';
 import AppIcon from '@/ui/AppIcon.vue';
@@ -136,9 +128,11 @@ import EmptyState from '@/ui/EmptyState.vue';
 import FlujoExcelencia from '../components/flujoExcelencia/FlujoExcelencia.vue';
 
 const kardexStore = useKardexStore();
+const tramitesStore = useTramitesStore();
 const route = useRoute();
 
 const identificador = ref('');
+const docentes = computed(() => tramitesStore.docentes.length ? tramitesStore.docentes : DOCENTES_MOCK);
 
 // El flujo solo aplica a trámites de la modalidad Excelencia Académica.
 const esExcelencia = computed(() => esFlujoExcelencia(kardexStore.tramite));
@@ -151,6 +145,8 @@ const buscar = async () => {
 
 /** Carga al estudiante indicado desde la alerta del panel general. */
 onMounted(async () => {
+    await tramitesStore.cargarDocentes();
+
     const inicial = String(route.query.identificador || '').trim();
     if (inicial) {
         identificador.value = inicial;

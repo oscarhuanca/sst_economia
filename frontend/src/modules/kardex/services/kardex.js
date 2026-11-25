@@ -88,6 +88,11 @@ export const kardexService = {
             datos: { documentos, observaciones },
         });
     },
+    verificarDocumentosExcelencia(id, documentos, observaciones = '') {
+        return http.post(`/tramites/${id}/excelencia/recepcion-documentos`, {
+            datos: { documentos, observaciones },
+        });
+    },
     /**
      * Guarda un módulo del flujo de Examen de Grado.
      *

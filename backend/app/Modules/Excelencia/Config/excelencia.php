@@ -12,9 +12,17 @@
  *     (por defecto 80).
  *   - `rango_nota`: rango válido en el que se puede registrar un promedio
  *     (0 a 100). El backend vuelve a validarlo por si el formulario se manipula.
+ *   - `tipos_documento`: PDFs que el estudiante adjunta al presentar la
+ *     solicitud. KARDEX los recepciona antes de verificar la nota.
  */
 return [
     'nota_minima' => max(1, min(100, (int) env('EXCELENCIA_NOTA_MINIMA', 80))),
 
     'rango_nota' => [0, 100],
+
+    'tipos_documento' => [
+        'nota_solicitud' => 'Nota de Solicitud',
+        'certificado_calificaciones' => 'Certificado de Calificaciones',
+        'record_academico' => 'Récord Académico',
+    ],
 ];

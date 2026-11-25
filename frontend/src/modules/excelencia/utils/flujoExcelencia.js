@@ -1,46 +1,55 @@
 // ============================================================================
 // Flujo de Excelencia Académica gestionado por KARDEX.
 //
-// Describe la modalidad como una secuencia de 3 módulos. No hay tutor ni
-// tribunal: la Excelencia Académica se titula por promedio sobresaliente.
+// Describe la modalidad como una secuencia de 5 módulos:
 //
-//  1. `verificacion_promedio` — KARDEX verifica el promedio general del
-//     estudiante (el que declaró al solicitar) contra el mínimo reglamentario,
-//     registra la Resolución del HCC que admite o rechaza la solicitud y
-//     confirma la revisión. Con resultado ACEPTADO avanza a
-//     `promedio_verificado`; con RECHAZADO, o con un promedio inferior al
-//     mínimo, queda rechazado y el estudiante no opta a la modalidad. El
-//     promedio verificado se consolida en el perfil del estudiante
-//     (`estudiantes.promedio_global`).
-//  2. `resolucion_hcc` — se registran el número y la fecha de la Resolución del
-//     HCC de lectura del acta, la fecha de lectura ante el tribunal y el PDF
-//     opcional del informe (`resolucion_hcc_registrada`).
-//  3. `reporte` — se emite el acta de Excelencia Académica y el estudiante
+//  1. `inicio_tramite` — el estudiante presentó la solicitud con los tres PDF
+//     obligatorios; KARDEX puede verlos desde la vista del trámite.
+//  2. `designacion_tribunal` — se registra la Resolución del HCC que designa
+//     al Tribunal de Evaluación (número, fecha y PDF opcional).
+//  3. `informe_tribunal` — se registra el Informe de Evaluación del Tribunal
+//     con el Tribunal 1 y el Tribunal 2 elegidos del catálogo de docentes, y su
+//     PDF opcional.
+//  4. `resolucion_hcc` — se registran el número y la fecha de la Resolución del
+//     HCC de lectura del acta, la fecha de lectura y el PDF opcional.
+//  5. `reporte` — se emite el acta de Excelencia Académica y el estudiante
 //     queda `titulado`.
 //
-// A diferencia del Examen de Grado, aquí el flujo es estrictamente lineal (la
-// única rama es el rechazo de la admisión), así que el estado actual del
-// trámite es la fuente de verdad del avance: cada módulo queda cerrado al
-// alcanzar su estado objetivo.
-//
+// El estado actual del trámite es la fuente de verdad del avance.
 // Espejo de `App\Modules\Excelencia\Services\ExcelenciaService`.
 // ============================================================================
 
 // Módulos del flujo en orden de ejecución.
 export const MODULOS_FLUJO_EXCELENCIA = [
   {
-    id: 'verificacion_promedio',
-    label: 'Verificación y Admisión',
-    estado: 'promedio_verificado',
-    pct: 35,
+    id: 'inicio_tramite',
+    label: 'Inicio de Trámite',
+    estado: 'solicitud_presentada',
+    pct: 20,
+    icon: 'inbox',
+    badge: 'Solicitud Presentada',
+  },
+  {
+    id: 'designacion_tribunal',
+    label: 'Designación de Tribunal de Evaluación',
+    estado: 'tribunal_designado',
+    pct: 40,
+    icon: 'users',
+    badge: 'Tribunal Designado',
+  },
+  {
+    id: 'informe_tribunal',
+    label: 'Informe de Evaluación del Tribunal',
+    estado: 'informe_tribunal_registrado',
+    pct: 60,
     icon: 'clipboard',
-    badge: 'Promedio Verificado',
+    badge: 'Informe Registrado',
   },
   {
     id: 'resolucion_hcc',
     label: 'Resolución del HCC y Lectura del Acta',
     estado: 'resolucion_hcc_registrada',
-    pct: 70,
+    pct: 80,
     icon: 'shield',
     badge: 'Resolución Registrada',
   },
@@ -54,30 +63,59 @@ export const MODULOS_FLUJO_EXCELENCIA = [
   },
 ];
 
-/**
- * Secuencia de estados del flujo, en orden.
- *
- * El módulo `i` queda cerrado cuando el trámite alcanza `ORDEN_ESTADOS[i + 1]`.
- */
+/** Secuencia de estados del flujo, en orden. */
 export const ORDEN_ESTADOS = [
   'solicitud_presentada',
-  'promedio_verificado',
+  'tribunal_designado',
+  'informe_tribunal_registrado',
   'resolucion_hcc_registrada',
   'titulado',
 ];
 
-/** Rango y mínimo de nota (espejo de `config/excelencia.php`). */
+const PORCENTAJES = [20, 40, 60, 80, 100];
+
+/** Rango y mínimo de nota (espejo de `config/excelencia.php`, solo legado). */
 export const RANGO_NOTA = [0, 100];
 export const NOTA_MINIMA = 80;
 
-/** Módulo en el que KARDEX registra el promedio verificado. */
-export const MODULO_VERIFICACION = 'verificacion_promedio';
+/**
+ * PDFs que el estudiante adjunta al presentar la solicitud. KARDEX los
+ * recepciona antes de continuar con el flujo.
+ */
+export const TIPOS_DOCUMENTO_EXCELENCIA = [
+  { tipo: 'nota_solicitud', etiqueta: 'Nota de Solicitud' },
+  { tipo: 'certificado_calificaciones', etiqueta: 'Certificado de Calificaciones' },
+  { tipo: 'record_academico', etiqueta: 'Récord Académico' },
+];
 
-/** Módulo en el que KARDEX registra la Resolución del HCC. */
+/** PDFs presentados por el estudiante, ordenados según el catálogo del módulo. */
+export function documentosSolicitud(tramite) {
+  const orden = TIPOS_DOCUMENTO_EXCELENCIA.map((d) => d.tipo);
+
+  return [...(tramite?.documentos || [])].sort(
+    (a, b) => orden.indexOf(a.tipo_documento) - orden.indexOf(b.tipo_documento),
+  );
+}
+
+/** Opciones del resultado de la evaluación del tribunal. */
+export const RESULTADOS_EVALUACION = [
+  { valor: 'correcto', etiqueta: 'Correcto', texto: 'Aprueba la Titulación por Excelencia del postulante' },
+  { valor: 'faltante', etiqueta: 'Faltante', texto: 'Observado por falta de documentacion' },
+  { valor: 'incorrecto', etiqueta: 'Incorrecto', texto: 'El promedio calculado no es mayor o igual a 80 puntos' },
+];
+
+export function resultadoEvaluacion(valor) {
+  return RESULTADOS_EVALUACION.find((opcion) => opcion.valor === valor) || null;
+}
+
+export const MODULO_INICIO = 'inicio_tramite';
+export const MODULO_DESIGNACION = 'designacion_tribunal';
+export const MODULO_INFORME = 'informe_tribunal';
 export const MODULO_RESOLUCION = 'resolucion_hcc';
-
-/** Módulo del reporte final (acta de titulación). */
 export const MODULO_REPORTE = 'reporte';
+
+/** Módulo heredado (ya no se registra, se conserva solo para datos antiguos). */
+export const MODULO_VERIFICACION = 'verificacion_promedio';
 
 /** Indica si el trámite pertenece a la modalidad de Excelencia Académica. */
 export function esFlujoExcelencia(tramite) {
@@ -87,22 +125,16 @@ export function esFlujoExcelencia(tramite) {
 /**
  * Estado de cada módulo del flujo para el trámite dado.
  *
- * @param {Object|null} tramite Trámite de Excelencia Académica.
  * @returns {Array<{id,label,estado,pct,icon,badge,completado,enProgreso}>}
- *          Un elemento por módulo, en el orden del flujo.
  */
 export function modulosExcelencia(tramite) {
   const indice = ORDEN_ESTADOS.indexOf(tramite?.estado_actual);
 
-  return MODULOS_FLUJO_EXCELENCIA.map((m, i) => {
-    const completado = indice > i;
-
-    return {
-      ...m,
-      completado,
-      enProgreso: indice === i,
-    };
-  });
+  return MODULOS_FLUJO_EXCELENCIA.map((m, i) => ({
+    ...m,
+    completado: indice >= i,
+    enProgreso: indice >= 0 && indice === i - 1,
+  }));
 }
 
 /** Porcentaje de avance (0-100) según el estado del trámite. */
@@ -111,12 +143,11 @@ export function pctExcelencia(tramite) {
 
   if (indice === -1) return 0;
 
-  return [0, 35, 70, 100][indice] ?? 0;
+  return PORCENTAJES[indice] ?? 0;
 }
 
 /**
- * Índice del primer módulo pendiente, o -1 si el flujo ya no admite más avances
- * (trámite rechazado o ya titulado).
+ * Índice del primer módulo pendiente, o -1 si el flujo ya no admite más avances.
  */
 export function proximoModuloPendiente(tramite) {
   if (tramite?.estado_actual === 'rechazado' || tramite?.estado_actual === 'titulado') return -1;
@@ -129,62 +160,29 @@ export function datosDeModulo(tramite, moduloId) {
   return tramite?.hitos?.modulos?.[moduloId] || null;
 }
 
-/**
- * Promedio declarado por el estudiante al presentar la solicitud.
- *
- * @returns {number|null} El promedio declarado, o null si el trámite aún no
- *          lo tiene registrado.
- */
-export function promedioDeclarado(tramite) {
-  const valor = datosDeModulo(tramite, MODULO_VERIFICACION)?.promedio_declarado;
-
-  return valor === undefined || valor === null || valor === '' ? null : Number(valor);
-}
-
-/**
- * Promedio verificado por KARDEX (el que se consolidó en el perfil del
- * estudiante).
- *
- * @returns {number|null} El promedio verificado, o null si todavía no se
- *          verificó.
- */
-export function promedioVerificado(tramite) {
-  const valor = datosDeModulo(tramite, MODULO_VERIFICACION)?.promedio;
-
-  return valor === undefined || valor === null || valor === '' ? null : Number(valor);
-}
-
-/**
- * Resultado de la admisión registrado en el paso 1.
- *
- * @returns {'aceptado'|'rechazado'|null}
- */
-export function resultadoAdmision(tramite) {
-  const resultado = datosDeModulo(tramite, MODULO_VERIFICACION)?.resultado;
-
-  return resultado === 'aceptado' || resultado === 'rechazado' ? resultado : null;
-}
-
-/**
- * Resolución del HCC que admite o rechaza la solicitud (paso 1).
- *
- * @returns {{numero_resolucion:string|null, fecha_resolucion:string|null}}
- */
-export function resolucionAdmision(tramite) {
-  const datos = datosDeModulo(tramite, MODULO_VERIFICACION) || {};
+/** Resolución HCC de designación del Tribunal de Evaluación (paso 2). */
+export function designacionTribunal(tramite) {
+  const datos = datosDeModulo(tramite, MODULO_DESIGNACION) || {};
 
   return {
     numero_resolucion: datos.numero_resolucion || null,
     fecha_resolucion: datos.fecha_resolucion || null,
+    resolucion_tribunal: datos.resolucion_tribunal || null,
   };
 }
 
-/**
- * Resolución del HCC registrada para el trámite.
- *
- * @returns {{numero_resolucion:string|null, fecha_resolucion:string|null,
- *            fecha_lectura_acta:string|null}}
- */
+/** Informe de Evaluación del Tribunal (paso 3). */
+export function informeTribunal(tramite) {
+  const datos = datosDeModulo(tramite, MODULO_INFORME) || {};
+
+  return {
+    tribunal_1: datos.tribunal_1 || null,
+    tribunal_2: datos.tribunal_2 || null,
+    informe_evaluacion_tribunal: datos.informe_evaluacion_tribunal || null,
+  };
+}
+
+/** Resolución del HCC registrada para el trámite (paso 4). */
 export function resolucionHcc(tramite) {
   const datos = datosDeModulo(tramite, MODULO_RESOLUCION) || {};
 
@@ -195,9 +193,36 @@ export function resolucionHcc(tramite) {
   };
 }
 
+/** Alias legado: la resolución que antes se mostraba como de admisión. */
+export function resolucionAdmision(tramite) {
+  return designacionTribunal(tramite);
+}
+
+/** Helpers legados: el promedio ya no interviene en el flujo. */
+export function promedioDeclarado() {
+  return null;
+}
+
+export function promedioVerificado() {
+  return null;
+}
+
+export function resultadoAdmision() {
+  return null;
+}
+
 /** Indica si el módulo tiene un informe PDF adjunto. */
 export function tieneInforme(datos, campo) {
   return Boolean(datos?.[campo]?.nombre);
+}
+
+/** Nombre legible de un docente del catálogo. */
+export function nombreDocente(docente) {
+  if (!docente) return '';
+  const nombre = docente.nombres || docente.nombre || '';
+  const apellidos = docente.apellidos || '';
+
+  return [nombre, apellidos].filter(Boolean).join(' ').trim();
 }
 
 /**
@@ -205,49 +230,45 @@ export function tieneInforme(datos, campo) {
  *
  * Reproduce las reglas de `ExcelenciaService` para avisar en el formulario sin
  * consumir la llamada: el backend vuelve a validarlas y es quien manda.
- *
- * @param {string} moduloId Identificador del módulo.
- * @param {Object} datos    Datos del formulario del módulo.
- * @returns {{ok:boolean, errores:string[], advertencias:string[]}} Resultado de la
- *          validación. Un resultado RECHAZADO no es un error: el backend cierra
- *          el flujo y lo que corresponde es una advertencia para que KARDEX
- *          confirme la decisión antes de guardar.
  */
 export function validarModulo(moduloId, datos = {}) {
   const errores = [];
-  const advertencias = [];
   const val = (v) => String(v ?? '').trim() !== '';
 
   switch (moduloId) {
-    case MODULO_VERIFICACION: {
-      const resultado = datos.resultado;
+    case MODULO_INICIO:
+      break;
 
-      if (!val(datos.promedio)) {
-        errores.push('Ingrese el promedio general del estudiante.');
-      } else {
-        const nota = Number(datos.promedio);
-
-        if (Number.isNaN(nota) || nota < RANGO_NOTA[0] || nota > RANGO_NOTA[1]) {
-          errores.push(`El promedio debe estar entre ${RANGO_NOTA[0]} y ${RANGO_NOTA[1]}.`);
-        } else if (resultado === 'aceptado' && nota < NOTA_MINIMA) {
-          errores.push(
-            `No es posible ACEPTAR la solicitud: el promedio ${nota} es inferior al mínimo de ${NOTA_MINIMA}.`,
-          );
-        }
+    case MODULO_DESIGNACION:
+      if (!val(datos.numero_resolucion)) {
+        errores.push('Ingrese el número de Resolución del HCC de designación del Tribunal.');
       }
-
-      if (resultado !== 'aceptado' && resultado !== 'rechazado') {
-        errores.push('Seleccione si la solicitud fue ACEPTADA o RECHAZADA.');
-      } else if (resultado === 'rechazado') {
-        advertencias.push(
-          'La solicitud quedará RECHAZADA: el flujo terminará y el estudiante deberá optar por otra modalidad.',
-        );
+      if (!val(datos.fecha_resolucion)) {
+        errores.push('Seleccione la fecha de la Resolución de designación.');
       }
-
-      if (!val(datos.numero_resolucion)) errores.push('Ingrese el número de Resolución del HCC.');
-      if (!val(datos.fecha_resolucion)) errores.push('Seleccione la fecha de la Resolución.');
       if (datos.confirmado !== true) {
-        errores.push('Marque la verificación del promedio y de la Resolución del HCC.');
+        errores.push('Marque la verificación de la designación del Tribunal.');
+      }
+      break;
+
+    case MODULO_INFORME: {
+      const t1 = datos.tribunal_1;
+      const t2 = datos.tribunal_2;
+
+      if (!t1 || !val(t1.id_docente) || !val(t1.nombre)) {
+        errores.push('Seleccione el Tribunal 1 del catálogo de docentes.');
+      }
+      if (!t2 || !val(t2.id_docente) || !val(t2.nombre)) {
+        errores.push('Seleccione el Tribunal 2 del catálogo de docentes.');
+      }
+      if (t1 && t2 && String(t1.id_docente) === String(t2.id_docente)) {
+        errores.push('Tribunal 1 y Tribunal 2 deben ser docentes distintos.');
+      }
+      if (!resultadoEvaluacion(datos.resultado_evaluacion)) {
+        errores.push('Seleccione el resultado de la evaluación del tribunal.');
+      }
+      if (datos.confirmado !== true) {
+        errores.push('Marque la verificación del Informe de Evaluación del Tribunal.');
       }
       break;
     }
@@ -268,5 +289,5 @@ export function validarModulo(moduloId, datos = {}) {
       errores.push('Módulo no reconocido.');
   }
 
-  return { ok: errores.length === 0, errores, advertencias };
+  return { ok: errores.length === 0, errores, advertencias: [] };
 }

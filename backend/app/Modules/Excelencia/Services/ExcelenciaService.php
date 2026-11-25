@@ -2,7 +2,8 @@
 
 namespace App\Modules\Excelencia\Services;
 
-use App\Models\Estudiante;
+use App\Models\Docente;
+use App\Models\EstadoTramite;
 use App\Models\Modalidad;
 use App\Models\Tramite;
 use App\Models\User;
@@ -19,31 +20,28 @@ use Illuminate\Validation\ValidationException;
 /**
  * Flujo de titulación de la modalidad Excelencia Académica.
  *
- * El estudiante opta a la modalidad por su promedio sobresaliente: presenta su
- * solicitud declarando el promedio general y KARDEX lo verifica (el valor
- * verificado puede corregirse), registra la Resolución del HCC que lo habilita
- * y, por último, emite el acta de titulación.
+ * El estudiante presenta su solicitud adjuntando la nota, el certificado de
+ * calificaciones y el récord académico en PDF. KARDEX recepciona los documentos
+ * y, desde el panel de Excelencia, registra la designación del tribunal, su
+ * informe de evaluación, la lectura del acta y, por último, emite el acta.
  *
- * Son TRES módulos, gestionados uno a uno desde el panel de KARDEX:
+ * Son CUATRO módulos gestionados uno a uno desde el panel de KARDEX:
  *
- *  1. `verificacion_promedio` — comprueba el promedio general del estudiante
- *     contra el mínimo reglamentario (`excelencia.nota_minima`, 80 por
- *     defecto), registra la Resolución del HCC que admite (o rechaza) al
- *     estudiante y permite adjuntar el informe PDF de verificación. Con el
- *     resultado ACEPTADO avanza a `promedio_verificado`; con RECHAZADO queda en
- *     `rechazado` (estado terminal) y el estudiante debe optar por otra
- *     modalidad. El promedio verificado se consolida en el perfil del
- *     estudiante (`estudiantes.promedio_global`).
- *  2. `resolucion_hcc` — registra el número y la fecha de la Resolución del
- *     HCC de lectura del acta, la fecha de lectura ante el tribunal y el PDF
- *     opcional del informe; el trámite avanza a `resolucion_hcc_registrada`.
- *  3. `reporte` — genera el acta de Excelencia Académica y titula al
+ *  1. `designacion_tribunal` — registra el número y la fecha de la Resolución
+ *     del HCC que designa al Tribunal de Evaluación y su PDF opcional; avanza a
+ *     `tribunal_designado`.
+ *  2. `informe_tribunal` — registra el Informe de Evaluación con el Tribunal 1
+ *     y el Tribunal 2 elegidos del catálogo de docentes, y su PDF opcional;
+ *     avanza a `informe_tribunal_registrado`.
+ *  3. `resolucion_hcc` — registra la Resolución del HCC de lectura del acta, la
+ *     fecha de lectura ante los tribunales y el PDF opcional del informe;
+ *     avanza a `resolucion_hcc_registrada`.
+ *  4. `reporte` — genera el acta de Excelencia Académica y titula al
  *     estudiante (`titulado`).
  *
- * El detalle de cada módulo (promedio declarado y verificado, resoluciones con
- * sus fechas, fecha de lectura del acta e informes adjuntos) se conserva en
- * `hitos.modulos`, que es lo que consultan el seguimiento del estudiante y el
- * acta de titulación.
+ * El detalle de cada módulo (resoluciones con sus fechas, tribunales, fecha de
+ * lectura del acta e informes adjuntos) se conserva en `hitos.modulos`, que es
+ * lo que consultan el seguimiento del estudiante y el acta de titulación.
  */
 class ExcelenciaService
 {
@@ -56,9 +54,21 @@ class ExcelenciaService
     public const MODALIDAD = 'Excelencia Académica';
 
     /**
-     * Módulo de verificación del promedio general del estudiante.
+     * Módulo de verificación del promedio general del estudiante (heredado).
+     *
+     * Ya no forma parte del flujo: se conserva para leer solicitudes antiguas.
      */
     public const MODULO_VERIFICACION = 'verificacion_promedio';
+
+    /**
+     * Módulo de designación del Tribunal de Evaluación.
+     */
+    public const MODULO_DESIGNACION = 'designacion_tribunal';
+
+    /**
+     * Módulo del Informe de Evaluación del Tribunal.
+     */
+    public const MODULO_INFORME = 'informe_tribunal';
 
     /**
      * Módulo de registro de la Resolución del HCC.
@@ -70,7 +80,20 @@ class ExcelenciaService
      */
     public const MODULO_REPORTE = 'reporte';
 
-    /** Documento opcional con el informe de verificación de notas. */
+    /** Resultados permitidos para el Informe de Evaluación del Tribunal. */
+    public const RESULTADOS_EVALUACION = [
+        'correcto' => 'Aprueba la Titulación por Excelencia del postulante',
+        'faltante' => 'Observado por falta de documentacion',
+        'incorrecto' => 'El promedio calculado no es mayor o igual a 80 puntos',
+    ];
+
+    /** PDF opcional con la resolución HCC de designación del tribunal. */
+    private const DOC_RESOLUCION_DESIGNACION = 'resolucion_designacion_tribunal_excelencia';
+
+    /** PDF opcional con el informe de evaluación del tribunal. */
+    private const DOC_INFORME_EVALUACION = 'informe_evaluacion_tribunal_excelencia';
+
+    /** Documento opcional con el informe de verificación de notas (heredado). */
     private const DOC_INFORME_VERIFICACION = 'informe_verificacion_excelencia';
 
     /** Documento opcional con el informe de lectura del acta. */
@@ -79,23 +102,17 @@ class ExcelenciaService
     /**
      * Estado objetivo de cada módulo cuando se registra satisfactoriamente.
      *
-     * `verificacion_promedio` no tiene estado fijo: con el resultado ACEPTADO
-     * avanza a `promedio_verificado` y con RECHAZADO queda en `rechazado` (ver
-     * `destinoVerificacion()`).
-     *
      * @var array<string, string>
      */
     private const MODULOS = [
-        self::MODULO_VERIFICACION => 'promedio_verificado',
+        self::MODULO_DESIGNACION => 'tribunal_designado',
+        self::MODULO_INFORME => 'informe_tribunal_registrado',
         self::MODULO_RESOLUCION => 'resolucion_hcc_registrada',
         self::MODULO_REPORTE => 'titulado',
     ];
 
     /**
      * Estados terminales que permiten volver a solicitar la modalidad.
-     *
-     * Un estudiante rechazado por promedio puede optar de nuevo por otra
-     * modalidad (o por esta misma si mejora su promedio).
      *
      * @var array<int, string>
      */
@@ -110,18 +127,18 @@ class ExcelenciaService
     /**
      * Crea la solicitud de Excelencia Académica del estudiante.
      *
-     * El promedio declarado por el estudiante queda registrado en
-     * `hitos.modulos.verificacion_promedio.promedio_declarado`: KARDEX lo
-     * verifica después y puede corregirlo (el valor verificado se guarda en
-     * `promedio`).
+     * Los PDF adjuntos quedan registrados como documentos del trámite para que
+     * KARDEX los recepcione antes de registrar la designación del tribunal.
      *
-     * @param  array<string, mixed>  $validated  Datos validados de la solicitud.
+     * @param  User  $user  Estudiante que presenta la solicitud.
+     * @param  array<int, array<string, mixed>>  $documentos  PDF validados.
+     * @param  string|null  $observaciones  Observación opcional del estudiante.
      *
      * @throws \DomainException Si la modalidad no está configurada, el
      *                          estudiante no tiene perfil o ya tiene una
      *                          solicitud de Excelencia Académica en curso.
      */
-    public function crearSolicitud(array $validated, User $user): Tramite
+    public function crearSolicitud(User $user, array $documentos = [], ?string $observaciones = null): Tramite
     {
         $modalidad = Modalidad::query()
             ->where('nombre', self::MODALIDAD)
@@ -151,12 +168,12 @@ class ExcelenciaService
         $tramite = $this->tramites->crear(
             [
                 'id_modalidad' => (int) $modalidad->id_modalidad,
-                'documentos' => [],
+                'documentos' => $documentos,
             ],
             $user
         );
 
-        $this->registrarSolicitud($tramite, (float) $validated['promedio']);
+        $this->registrarSolicitud($tramite, $observaciones);
 
         return $tramite;
     }
@@ -212,20 +229,104 @@ class ExcelenciaService
     }
 
     /**
+     * Acusa recibido el PDF presentado por el estudiante y registra la
+     * verificación documental de KARDEX.
+     *
+     * El estado del trámite se mantiene en `solicitud_presentada`: el cambio
+     * al primer módulo (`tribunal_designado`) lo hace el guardado de la
+     * designación. Igual que en Examen de Grado, la revisión se conserva en
+     * `hitos.recepcion_documentos` y en el historial de estados.
+     *
+     * @param  array<string, mixed>  $datos
+     *
+     * @throws ValidationException
+     */
+    public function verificarDocumentos(int $id, array $datos, User $actor): array
+    {
+        $tramite = Tramite::with('modalidad', 'documentos')->findOrFail($id);
+
+        if ($tramite->modalidad->nombre !== self::MODALIDAD) {
+            throw ValidationException::withMessages([
+                'tramite' => ['La verificación documental solo aplica a la modalidad Excelencia Académica.'],
+            ]);
+        }
+
+        if ($tramite->estado_actual !== 'solicitud_presentada') {
+            throw ValidationException::withMessages([
+                'estado_actual' => ['La solicitud ya fue revisada; no es posible acusar la documentación nuevamente.'],
+            ]);
+        }
+
+        $marcados = $datos['documentos'] ?? [];
+        $documentosPorTipo = $tramite->documentos->keyBy('tipo_documento');
+        $errores = [];
+        $registro = [];
+
+        foreach (config('excelencia.tipos_documento', []) as $tipo => $etiqueta) {
+            if (empty($marcados[$tipo])) {
+                $errores[] = "Marque {$etiqueta} como verificado.";
+
+                continue;
+            }
+
+            $documento = $documentosPorTipo->get($tipo);
+
+            if ($documento === null) {
+                $errores[] = "Falta el PDF de {$etiqueta}.";
+
+                continue;
+            }
+
+            $registro[$tipo] = [
+                'marcado' => true,
+                'id_documento' => (int) $documento->id_documento,
+            ];
+        }
+
+        if ($errores !== []) {
+            throw ValidationException::withMessages(['datos' => $errores]);
+        }
+
+        DB::transaction(function () use ($tramite, $registro, $datos, $actor) {
+            $hitos = $tramite->hitos ?? [];
+            $hitos['recepcion_documentos'] = [
+                'verificado' => true,
+                'verificado_en' => Carbon::now()->toIso8601String(),
+                'id_usuario_verifico' => (int) $actor->id_usuario,
+                'observaciones' => $this->opcional($datos['observaciones'] ?? null),
+                'documentos' => $registro,
+            ];
+
+            $tramite->update(['hitos' => $hitos]);
+
+            EstadoTramite::create([
+                'id_tramite' => $tramite->id_tramite,
+                'nombre_estado' => 'solicitud_presentada',
+                'descripcion' => 'Documentación de Excelencia Académica verificada por KARDEX',
+                'id_usuario_responsable' => $actor->id_usuario,
+                'observaciones' => $this->opcional($datos['observaciones'] ?? null),
+            ]);
+        });
+
+        $tramite->refresh()->load(['modalidad', 'estudiante', 'documentos']);
+
+        return $this->tramites->formatear($tramite);
+    }
+
+    /**
      * Registra un módulo del flujo de Excelencia Académica y avanza el estado
      * del trámite al que corresponde.
      *
      * @param  string  $modulo  Identificador del módulo (ver `self::MODULOS`).
      * @param  array<string, mixed>  $datos  Datos del formulario del módulo.
-     * @param  array<string, UploadedFile>  $adjuntos  Informes PDF opcionales.
+     * @param  array<string, UploadedFile>  $adjuntos  PDFs opcionales.
      * @return array Trámite formateado (con siguientes estados y secuencia).
      *
      * @throws ValidationException
      */
     public function guardarModulo(int $id, string $modulo, array $datos, User $actor, array $adjuntos = []): array
     {
-        // La transición, el registro en `hitos` y la consolidación del promedio
-        // verificado en el perfil del estudiante van juntos: un fallo a mitad
+        // La transición y el registro en `hitos` van juntos: un fallo a mitad
         // del guardado no debe dejar el trámite en un estado sin su registro.
         return DB::transaction(fn () => $this->resolverModulo($id, $modulo, $datos, $actor, $adjuntos));
     }
@@ -261,7 +362,8 @@ class ExcelenciaService
         }
 
         $destino = match ($modulo) {
-            self::MODULO_VERIFICACION => $this->destinoVerificacion($datos),
+            self::MODULO_DESIGNACION => $this->destinoDesignacion($datos),
+            self::MODULO_INFORME => $this->destinoInforme($datos),
             self::MODULO_RESOLUCION => $this->destinoResolucion($datos),
             self::MODULO_REPORTE => $this->destinoReporte($tramite),
         };
@@ -279,87 +381,135 @@ class ExcelenciaService
     }
 
     /**
-     * Módulo 1 — verificación del promedio general y admisión a la modalidad.
-     *
-     * El promedio lo digita KARDEX (por defecto, el declarado por el
-     * estudiante) y puede corregirlo: es la nota que se consolida en el perfil
-     * del estudiante. KARDEX registra además la Resolución del HCC que admite
-     * o rechaza la solicitud y confirma la revisión del informe. Un resultado
-     * RECHAZADO (o un promedio inferior al mínimo) cierra el flujo: el
-     * estudiante debe optar por otra modalidad.
+     * Módulo 1 — designación del Tribunal de Evaluación por Resolución del HCC.
      *
      * @param  array<string, mixed>  $datos
-     * @return array{estado:string, observacion:string, promedio:?float, aprobado:bool}
+     * @return array{estado:string, observacion:string}
      *
      * @throws ValidationException
      */
-    private function destinoVerificacion(array $datos): array
+    private function destinoDesignacion(array $datos): array
     {
-        $minimo = self::notaMinima();
-        [$rangoMin, $rangoMax] = config('excelencia.rango_nota', [0, 100]);
-
         $errores = [];
-        $valor = $datos['promedio'] ?? null;
-        $nota = null;
-
-        if ($valor === null || $valor === '' || ! is_numeric($valor)) {
-            $errores[] = 'Ingrese el promedio general del estudiante.';
-        } else {
-            $nota = (float) $valor;
-
-            if ($nota < $rangoMin || $nota > $rangoMax) {
-                $errores[] = "El promedio debe estar entre {$rangoMin} y {$rangoMax}.";
-            }
-        }
-
-        $resultado = $datos['resultado'] ?? null;
-
-        if (! in_array($resultado, ['aceptado', 'rechazado'], true)) {
-            $errores[] = 'Seleccione si la solicitud fue ACEPTADA o RECHAZADA.';
-        }
-
-        if (! $this->confirmado($datos['confirmado'] ?? null)) {
-            $errores[] = 'Marque la verificación del promedio y de la Resolución del HCC.';
-        }
 
         if (! $this->informado($datos['numero_resolucion'] ?? null)) {
-            $errores[] = 'Ingrese el número de Resolución del HCC.';
+            $errores[] = 'Ingrese el número de Resolución del HCC de designación del Tribunal.';
         }
-
         if (! $this->informado($datos['fecha_resolucion'] ?? null)) {
-            $errores[] = 'Seleccione la fecha de la Resolución.';
+            $errores[] = 'Seleccione la fecha de la Resolución de designación.';
+        }
+        if (! $this->confirmado($datos['confirmado'] ?? null)) {
+            $errores[] = 'Marque la verificación de la designación del Tribunal.';
         }
 
         if ($errores !== []) {
             throw ValidationException::withMessages(['datos' => $errores]);
         }
 
-        if ($resultado === 'aceptado' && $nota < $minimo) {
-            throw ValidationException::withMessages([
-                'datos' => ["No es posible aceptar la solicitud: el promedio {$nota} es inferior al mínimo de {$minimo}."],
-            ]);
-        }
-
         $resolucion = trim((string) $datos['numero_resolucion']);
-        $aprobado = $resultado === 'aceptado';
+        $fecha = trim((string) $datos['fecha_resolucion']);
 
         return [
-            'estado' => $aprobado ? 'promedio_verificado' : 'rechazado',
-            'promedio' => $nota,
-            'aprobado' => $aprobado,
-            'observacion' => $aprobado
-                ? "Promedio verificado: {$nota} (mínimo de {$minimo}). Resolución N.º {$resolucion} del HCC. "
-                    .'El estudiante habilita su titulación por Excelencia Académica.'
-                : "Solicitud rechazada. Resolución N.º {$resolucion} del HCC. "
-                    .'El estudiante no habilita la modalidad y debe optar por otra modalidad de titulación.',
+            'estado' => 'tribunal_designado',
+            'observacion' => "Resolución N.º {$resolucion} del HCC de designación del Tribunal de Evaluación registrada con fecha {$fecha}.",
         ];
     }
 
     /**
-     * Módulo 2 — Resolución del HCC y lectura del acta ante el tribunal.
+     * Módulo 2 — Informe de Evaluación del Tribunal.
+     *
+     * Los dos miembros se eligen del catálogo de docentes por `id_docente`, se
+     * guarda también su nombre legible y se exige que sean personas distintas.
+     *
+     * @param  array<string, mixed>  $datos
+     * @return array{estado:string, observacion:string, tribunal:array<string, array{id_docente:int, nombre:string}>, resultado_evaluacion:string}
+     *
+     * @throws ValidationException
+     */
+    private function destinoInforme(array $datos): array
+    {
+        $errores = [];
+        $tribunal = [];
+
+        foreach (['tribunal_1', 'tribunal_2'] as $clave) {
+            $miembro = $datos[$clave] ?? null;
+            $etiqueta = $clave === 'tribunal_1' ? 'Tribunal 1' : 'Tribunal 2';
+
+            if (! is_array($miembro)) {
+                $errores[] = "Seleccione el {$etiqueta} del catálogo de docentes.";
+
+                continue;
+            }
+
+            $id = $miembro['id_docente'] ?? null;
+            $nombre = $this->opcional($miembro['nombre'] ?? null);
+
+            if ($id === null || ! is_numeric($id)) {
+                $errores[] = "Seleccione un docente válido para {$etiqueta}.";
+
+                continue;
+            }
+
+            if ($nombre === null) {
+                $errores[] = "Falta el nombre del docente seleccionado para {$etiqueta}.";
+
+                continue;
+            }
+
+            $tribunal[$clave] = [
+                'id_docente' => (int) $id,
+                'nombre' => $nombre,
+            ];
+        }
+
+        if (isset($tribunal['tribunal_1'], $tribunal['tribunal_2'])
+            && $tribunal['tribunal_1']['id_docente'] === $tribunal['tribunal_2']['id_docente']) {
+            $errores[] = 'Tribunal 1 y Tribunal 2 deben ser docentes distintos.';
+        }
+
+        if (count($tribunal) === 2) {
+            $ids = array_column($tribunal, 'id_docente');
+            $existentes = Docente::query()
+                ->whereIn('id_docente', $ids)
+                ->pluck('id_docente')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
+            if (count($existentes) < count($ids)) {
+                $errores[] = 'Uno de los docentes seleccionados no existe en el catálogo.';
+            }
+        }
+
+        $resultado = $this->opcional($datos['resultado_evaluacion'] ?? null);
+
+        if ($resultado === null || ! array_key_exists($resultado, self::RESULTADOS_EVALUACION)) {
+            $errores[] = 'Seleccione el resultado de la evaluación del tribunal.';
+        }
+
+        if (! $this->confirmado($datos['confirmado'] ?? null)) {
+            $errores[] = 'Marque la verificación del Informe de Evaluación del Tribunal.';
+        }
+
+        if ($errores !== []) {
+            throw ValidationException::withMessages(['datos' => $errores]);
+        }
+
+        return [
+            'estado' => 'informe_tribunal_registrado',
+            'observacion' => 'Informe de Evaluación del Tribunal registrado. '
+                ."Tribunal 1: {$tribunal['tribunal_1']['nombre']}. "
+                ."Tribunal 2: {$tribunal['tribunal_2']['nombre']}. "
+                .'Resultado: '.self::RESULTADOS_EVALUACION[$resultado],
+            'tribunal' => $tribunal,
+            'resultado_evaluacion' => $resultado,
+        ];
+    }
+
+    /**
+     * Módulo 3 — Resolución del HCC y lectura del acta ante los tribunales.
      *
      * Registra la Resolución que fija la lectura del acta, su fecha y la fecha
-     * en que se realizó la lectura ante los tres tribunales. KARDEX confirma
+     * en que se realizó la lectura ante los tribunales. KARDEX confirma
      * expresamente la revisión de estos datos y del informe PDF opcional.
      *
      * @param  array<string, mixed>  $datos
@@ -399,11 +549,12 @@ class ExcelenciaService
     }
 
     /**
-     * Módulo 3 — reporte final: el acta de Excelencia Académica titula al
+     * Módulo 4 — reporte final: el acta de Excelencia Académica titula al
      * estudiante.
      *
-     * Exige que la verificación y la lectura del acta hayan sido registradas:
-     * sin esos datos no hay constancia que titular.
+     * Exige que la designación del tribunal, el informe de evaluación y la
+     * lectura del acta hayan sido registrados: sin esos datos no hay
+     * constancia que titular.
      *
      * @return array{estado:string, observacion:string}
      *
@@ -412,12 +563,19 @@ class ExcelenciaService
     private function destinoReporte(Tramite $tramite): array
     {
         $modulos = $tramite->hitos['modulos'] ?? [];
-        $verificacion = $modulos[self::MODULO_VERIFICACION] ?? [];
+        $designacion = $modulos[self::MODULO_DESIGNACION] ?? [];
+        $informe = $modulos[self::MODULO_INFORME] ?? [];
         $resolucion = $modulos[self::MODULO_RESOLUCION] ?? [];
 
-        if (! isset($verificacion['promedio'])) {
+        if (! $this->informado($designacion['numero_resolucion'] ?? null)) {
             throw ValidationException::withMessages([
-                'datos' => ['Registre primero la verificación del promedio del estudiante.'],
+                'datos' => ['Registre primero la designación del Tribunal de Evaluación.'],
+            ]);
+        }
+
+        if (empty($informe['verificado'])) {
+            throw ValidationException::withMessages([
+                'datos' => ['Registre el Informe de Evaluación del Tribunal antes de emitir el título.'],
             ]);
         }
 
@@ -476,17 +634,22 @@ class ExcelenciaService
         $modulos = $hitos['modulos'] ?? [];
         $guardado = array_replace($modulos[$modulo] ?? [], $datos);
 
-        if ($modulo === self::MODULO_VERIFICACION) {
-            $guardado['promedio'] = $destino['promedio'];
-            $guardado['nota_minima'] = self::notaMinima();
-            $guardado['aprobado'] = $destino['aprobado'];
+        if (in_array($modulo, [
+            self::MODULO_DESIGNACION,
+            self::MODULO_INFORME,
+            self::MODULO_RESOLUCION,
+        ], true)) {
             $guardado['verificado'] = true;
             $guardado['fecha_verificacion'] = Carbon::today()->toDateString();
         }
 
-        if ($modulo === self::MODULO_RESOLUCION) {
-            $guardado['verificado'] = true;
-            $guardado['fecha_verificacion'] = Carbon::today()->toDateString();
+        if ($modulo === self::MODULO_INFORME) {
+            if (isset($destino['tribunal'])) {
+                $guardado['tribunal'] = $destino['tribunal'];
+            }
+            if (isset($destino['resultado_evaluacion'])) {
+                $guardado['resultado_evaluacion'] = $destino['resultado_evaluacion'];
+            }
         }
 
         $modulos[$modulo] = $guardado;
@@ -494,13 +657,6 @@ class ExcelenciaService
         $hitos[$destino['estado']] = Carbon::today()->toDateString();
 
         $tramite->update(['hitos' => $hitos]);
-
-        // El promedio verificado se consolida en el perfil del estudiante.
-        if ($modulo === self::MODULO_VERIFICACION && $destino['promedio'] !== null) {
-            Estudiante::query()
-                ->whereKey($tramite->id_estudiante)
-                ->update(['promedio_global' => $destino['promedio']]);
-        }
     }
 
     /**
@@ -519,8 +675,10 @@ class ExcelenciaService
         array $adjuntos,
     ): array {
         $documentos = match ($modulo) {
-            self::MODULO_VERIFICACION => ['informe_verificacion' => self::DOC_INFORME_VERIFICACION],
+            self::MODULO_DESIGNACION => ['resolucion_tribunal' => self::DOC_RESOLUCION_DESIGNACION],
+            self::MODULO_INFORME => ['informe_evaluacion_tribunal' => self::DOC_INFORME_EVALUACION],
             self::MODULO_RESOLUCION => ['informe_lectura_acta' => self::DOC_INFORME_LECTURA_ACTA],
+            self::MODULO_VERIFICACION => ['informe_verificacion' => self::DOC_INFORME_VERIFICACION],
             default => [],
         };
 
@@ -547,21 +705,18 @@ class ExcelenciaService
     }
 
     /**
-     * Registra la solicitud del estudiante: la fecha de presentación y el
-     * promedio declarado, que KARDEX verifica (y puede corregir) después.
+     * Registra la solicitud del estudiante: la fecha de presentación y la
+     * observación opcional. KARDEX continúa con la designación del tribunal.
      */
-    private function registrarSolicitud(Tramite $tramite, float $promedio): void
+    private function registrarSolicitud(Tramite $tramite, ?string $observaciones = null): void
     {
         $hitos = $tramite->hitos ?? [];
 
         $hitos['solicitud_presentada'] = Carbon::today()->toDateString();
 
-        $modulos = $hitos['modulos'] ?? [];
-        $verificacion = $modulos[self::MODULO_VERIFICACION] ?? [];
-        $verificacion['promedio_declarado'] = $promedio;
-        $verificacion['nota_minima'] = self::notaMinima();
-        $modulos[self::MODULO_VERIFICACION] = $verificacion;
-        $hitos['modulos'] = $modulos;
+        if ($observaciones !== null && trim($observaciones) !== '') {
+            $hitos['observaciones_solicitud'] = $observaciones;
+        }
 
         $tramite->update(['hitos' => $hitos]);
     }
@@ -589,6 +744,14 @@ class ExcelenciaService
     private function informado(mixed $valor): bool
     {
         return is_string($valor) ? trim($valor) !== '' : $valor !== null;
+    }
+
+    /** Normaliza un campo opcional: cadena recortada o null. */
+    private function opcional(mixed $valor): ?string
+    {
+        $texto = is_string($valor) ? trim($valor) : '';
+
+        return $texto === '' ? null : $texto;
     }
 
     /** Interpreta el checkbox de confirmación enviado por el frontend. */

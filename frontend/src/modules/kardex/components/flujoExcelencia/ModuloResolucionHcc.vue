@@ -1,6 +1,6 @@
 <template>
   <ModuloTarjeta
-    numero="2"
+    :numero="numero"
     titulo="Resolución del HCC y Lectura del Acta"
     descripcion="Registre la Resolución del HCC que fija la lectura del acta, la fecha de lectura ante los tribunales y el informe opcional."
     icono="shield"
@@ -173,6 +173,7 @@ import AppIcon from '@/ui/AppIcon.vue';
 import ModuloTarjeta from '../flujo/ModuloTarjeta.vue';
 
 const props = defineProps({
+    numero: { type: [Number, String], required: true },
     completado: { type: Boolean, default: false },
     enProgreso: { type: Boolean, default: false },
     bloqueado: { type: Boolean, default: false },

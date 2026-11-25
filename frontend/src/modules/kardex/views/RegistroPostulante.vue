@@ -325,14 +325,21 @@
                 <AppIcon v-if="remitiendo" name="loader" :size="18" class="animate-spin" />
                 <AppIcon v-else name="send" :size="18" />
                 <span class="uppercase tracking-wide">
-                  {{ esExamen ? 'Verificado: continuar a Examen de Grado' : 'Acusar recibido y remitir al HCC' }}
+                  {{ esExamen
+                    ? 'Verificado: continuar a Examen de Grado'
+                    : esExcelencia
+                      ? 'Verificado: continuar a Excelencia Académica'
+                      : 'Acusar recibido y remitir al HCC' }}
                 </span>
               </button>
             </div>
 
             <div v-else class="flex items-start gap-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 px-4 py-3 mt-5 text-sm text-emerald-200">
               <AppIcon name="check-circle" :size="18" class="shrink-0 mt-0.5" />
-              <span>Documentación recepcionada y remitida al HCC. Estado actual: <strong>{{ formatoEstado(kardexStore.tramite.estado_actual) }}</strong>.</span>
+              <span>
+                Documentación recepcionada{{ requiereRecepcionDocumentos ? ' y verificada' : ' y remitida al HCC' }}.
+                Estado actual: <strong>{{ formatoEstado(kardexStore.tramite.estado_actual) }}</strong>.
+              </span>
             </div>
           </template>
 
@@ -385,8 +392,9 @@ import { fechaLegible, iniciales } from '@/modules/kardex/utils/formato';
 import { EstadoBadge } from '@/modules/tramites';
 import { tramitesService } from '@/modules/tramites/services/tramites';
 import { configDeTramite, tituloPerfil } from '@/modules/tramites/utils/flujoTitulacion';
-import { formatoEstado } from '@/modules/tramites/utils/estados';
+import { formatoEstado, etiquetaDocumento as etiquetaDocumentoEstado } from '@/modules/tramites/utils/estados';
 import { TIPOS_DOCUMENTO_EXAMEN } from '@/modules/examen/utils/flujoExamen';
+import { TIPOS_DOCUMENTO_EXCELENCIA } from '@/modules/excelencia/utils/flujoExcelencia';
 import { assetUrl } from '@/core/http/storage';
 import { useToastStore } from '@/core/stores/toast';
 import AppIcon from '@/ui/AppIcon.vue';
@@ -420,29 +428,35 @@ const configTramite = computed(() => configDeTramite(kardexStore.tramite));
 const documentosTramite = computed(() => kardexStore.tramite?.documentos || []);
 const tituloTramite = computed(() => tituloPerfil(kardexStore.tramite));
 const esExamen = computed(() => kardexStore.tramite?.modalidad?.nombre === 'Examen de Grado');
-const documentosExamenVerificados = computed(
+const esExcelencia = computed(() => kardexStore.tramite?.modalidad?.nombre === 'Excelencia Académica');
+const requiereRecepcionDocumentos = computed(() => esExamen.value || esExcelencia.value);
+const documentosVerificadosPorModalidad = computed(
   () => kardexStore.tramite?.hitos?.recepcion_documentos?.verificado === true,
 );
 const pendienteRemision = computed(() =>
   kardexStore.tramite?.estado_actual === 'solicitud_presentada'
-  && !(esExamen.value && documentosExamenVerificados.value),
+  && !(requiereRecepcionDocumentos.value && documentosVerificadosPorModalidad.value),
 );
-const documentacionRemitida = computed(() => esExamen.value
-  ? documentosExamenVerificados.value
+const documentacionRemitida = computed(() => requiereRecepcionDocumentos.value
+  ? documentosVerificadosPorModalidad.value
   : kardexStore.tramite?.estado_actual === 'pendiente_concejo_universitario',
 );
 const puedeRemitir = computed(() => {
   if (!pendienteRemision.value || !documentosTramite.value.length) return false;
 
-  if (!esExamen.value) {
+  if (!requiereRecepcionDocumentos.value) {
     return documentosTramite.value.every((doc) => verificados[claveDoc(doc)]);
   }
 
-  return TIPOS_DOCUMENTO_EXAMEN.every(({ tipo }) => {
+  const tipos = esExamen.value ? TIPOS_DOCUMENTO_EXAMEN : TIPOS_DOCUMENTO_EXCELENCIA;
+
+  return tipos.every(({ tipo }) => {
     const doc = documentosTramite.value.find((item) => item.tipo_documento === tipo);
     return doc && verificados[claveDoc(doc)];
   });
 });
+
+const esEtapaVerificacion = (valor) => ['modalidad', 'verificacion'].includes(String(valor || ''));
 
 onMounted(async () => {
   await kardexStore.cargarModalidades();
@@ -453,7 +467,7 @@ onMounted(async () => {
     identificador.value = identificadorInicial;
     await buscar(false);
   }
-  if (route.query.etapa === 'modalidad') {
+  if (esEtapaVerificacion(route.query.etapa)) {
     etapa.value = 2;
     if (identificadorInicial) await verificar();
   }
@@ -464,7 +478,7 @@ watch(() => route.query.identificador, async (valor) => {
   if (!nuevo || nuevo === identificador.value.trim()) return;
   identificador.value = nuevo;
   await buscar(false);
-  etapa.value = route.query.etapa === 'modalidad' ? 2 : 1;
+  etapa.value = esEtapaVerificacion(route.query.etapa) ? 2 : 1;
   if (etapa.value === 2) await verificar();
 });
 
@@ -499,7 +513,7 @@ function claveDoc(doc) {
 function etiquetaDocumento(tipo) {
   const encontrada = configTramite.value?.documentosPerfil?.find((d) => d.tipo === tipo);
   if (encontrada) return encontrada.etiqueta;
-  return formatoEstado(tipo);
+  return etiquetaDocumentoEstado(tipo);
 }
 
 function resetRecepcion() {
@@ -553,22 +567,33 @@ const remitirAlHcc = async () => {
   const identificadorPostulante = identificador.value.trim();
   const observaciones = observacionesRecepcion.value.trim();
   try {
-    if (esExamen.value) {
+    if (requiereRecepcionDocumentos.value) {
       const documentos = {};
       documentosTramite.value.forEach((doc) => {
         documentos[doc.tipo_documento] = Boolean(verificados[claveDoc(doc)]);
       });
 
-      const verificado = await kardexStore.verificarDocumentosExamen(documentos, observaciones);
+      const verificado = esExamen.value
+        ? await kardexStore.verificarDocumentosExamen(documentos, observaciones)
+        : await kardexStore.verificarDocumentosExcelencia(documentos, observaciones);
+
       if (!verificado) {
-        toastStore.error(kardexStore.errorMessage || 'No se pudo verificar la documentación del examen.');
+        toastStore.error(
+          esExamen.value
+            ? kardexStore.errorMessage || 'No se pudo verificar la documentación del examen.'
+            : kardexStore.errorMessage || 'No se pudo verificar la documentación de Excelencia Académica.',
+        );
         return;
       }
 
-      toastStore.success('Documentación verificada. Continúe con el flujo de Examen de Grado.');
+      toastStore.success(
+        esExamen.value
+          ? 'Documentación verificada. Continúe con el flujo de Examen de Grado.'
+          : 'Documentación verificada. Continúe con el flujo de Excelencia Académica.',
+      );
       resetRecepcion();
       await router.push({
-        path: '/kardex/examen',
+        path: esExamen.value ? '/kardex/examen' : '/kardex/excelencia-academica',
         query: { identificador: identificadorPostulante, tramite: String(idTramite) },
       });
       return;

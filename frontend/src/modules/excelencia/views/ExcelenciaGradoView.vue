@@ -1,5 +1,5 @@
 <template>
-  <AppShell title="Solicitud de Excelencia Académica" subtitle="Titulación por promedio sobresaliente verificado por el HCC">
+  <AppShell title="Solicitud de Excelencia Académica" subtitle="Designación y evaluación del tribunal por el HCC">
     <div v-if="cargando" class="card flex items-center justify-center gap-2 py-16 text-slate-400">
       <AppIcon name="loader" :size="20" class="animate-spin" />
       Cargando tu solicitud de Excelencia Académica...
@@ -53,14 +53,10 @@
         <AppIcon name="x-circle" :size="20" class="mt-0.5 shrink-0" />
         <p class="text-sm font-medium">
           Tu solicitud de Excelencia Académica fue rechazada mediante la Resolución del HCC
-          <strong>{{ resolucionAdmision.numero_resolucion || '—' }}</strong>
-          <template v-if="resolucionAdmision.fecha_resolucion">
-            del {{ fechaLegible(resolucionAdmision.fecha_resolucion) }}
+          <strong>{{ designacion.numero_resolucion || '—' }}</strong>
+          <template v-if="designacion.fecha_resolucion">
+            del {{ fechaLegible(designacion.fecha_resolucion) }}
           </template>.
-          <template v-if="promedioVerificado !== null && promedioVerificado < notaMinima">
-            El promedio verificado ({{ promedioVerificado }}) es inferior al mínimo de
-            <strong>{{ notaMinima }}</strong> exigido por la modalidad.
-          </template>
           Puedes optar por otra modalidad de titulación.
         </p>
       </div>
@@ -76,8 +72,9 @@
             <div>
               <h2 class="text-lg font-extrabold text-white">Solicitud de Excelencia Académica</h2>
               <p class="text-sm text-slate-400">
-                Presenta tu solicitud declarando tu promedio general; KARDEX lo verifica
-                y, si cumple el mínimo, registra la Resolución del HCC que te habilita.
+                Presenta tu solicitud adjuntando la nota, el certificado de calificaciones
+                y el récord académico en PDF; KARDEX recepciona los documentos y continua
+                con la designación del Tribunal de Evaluación.
               </p>
             </div>
           </div>
@@ -94,33 +91,28 @@
             </div>
           </div>
 
-          <form @submit.prevent="enviarSolicitud" class="mt-7 grid sm:grid-cols-2 gap-5">
-            <div>
-              <label class="label" for="excelencia-promedio">Promedio general · obligatorio</label>
-              <div class="relative">
-                <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
-                  <AppIcon name="chart" :size="18" />
-                </span>
-                <input
-                  id="excelencia-promedio"
-                  v-model="promedio"
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.01"
-                  class="input pl-10"
-                  placeholder="Ej: 87.50"
-                />
+          <form @submit.prevent="enviarSolicitud" class="mt-7 space-y-5">
+            <div class="rounded-xl bg-white/5 ring-1 ring-white/10 p-4">
+              <p class="text-xs uppercase tracking-wide text-slate-400 font-semibold">Documentos en PDF</p>
+              <p class="mt-1 text-xs text-slate-400">
+                Adjunta la nota de solicitud, el certificado de calificaciones y el récord
+                académico. KARDEX los verificará antes de designar al tribunal.
+              </p>
+              <div class="mt-3 grid sm:grid-cols-2 gap-3">
+                <label v-for="doc in TIPOS_DOCUMENTO_EXCELENCIA" :key="doc.tipo" class="block">
+                  <span class="label">{{ doc.etiqueta }} (PDF)</span>
+                  <input
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    class="input"
+                    :disabled="excelenciaStore.enviando"
+                    @change="documentos[doc.tipo] = $event.target.files[0]"
+                  >
+                  <span v-if="documentos[doc.tipo]" class="mt-1 block text-xs text-emerald-300 truncate">
+                    {{ documentos[doc.tipo].name }}
+                  </span>
+                </label>
               </div>
-              <p class="mt-2 flex items-center gap-1.5 text-xs text-slate-400">
-                <AppIcon name="info" :size="13" />
-                Se habilita con {{ notaMinima }} o más. KARDEX verifica la nota y puede
-                corregirla antes de consolidarla en tu perfil.
-              </p>
-              <p v-if="promedioDebajoDelMinimo" class="mt-1.5 flex items-center gap-1.5 text-xs text-amber-300">
-                <AppIcon name="alert-triangle" :size="13" />
-                Con {{ promedio }} no alcanzarías el mínimo: KARDEX rechazará la solicitud.
-              </p>
             </div>
 
             <div>
@@ -134,10 +126,10 @@
               ></textarea>
             </div>
 
-            <div class="sm:col-span-2 flex items-center justify-between gap-3 pt-2">
-              <p v-if="!promedioValido" class="text-xs text-slate-400 inline-flex items-center gap-1.5">
+            <div class="flex items-center justify-between gap-3 pt-2">
+              <p v-if="!documentosCompletos" class="text-xs text-slate-400 inline-flex items-center gap-1.5">
                 <AppIcon name="info" :size="14" />
-                Ingrese su promedio general (entre 0 y 100).
+                Adjunte los tres documentos en PDF para continuar.
               </p>
               <p v-else class="text-xs font-semibold text-emerald-300 inline-flex items-center gap-1.5">
                 <AppIcon name="check" :size="14" />
@@ -146,7 +138,7 @@
               <button
                 type="submit"
                 class="btn-primary px-6 py-2.5 shrink-0"
-                :disabled="excelenciaStore.enviando || !promedioValido"
+                :disabled="excelenciaStore.enviando || !documentosCompletos"
               >
                 <AppIcon v-if="excelenciaStore.enviando" name="loader" :size="15" class="animate-spin" />
                 <AppIcon v-else name="send" :size="15" />
@@ -162,20 +154,12 @@
     <!-- CON SOLICITUD ACTIVA: seguimiento del flujo -->
     <!-- ============================================================== -->
     <div v-else class="space-y-6">
-      <SeguimientoExcelencia :tramite="tramite" :nota-minima="notaMinima" />
+      <SeguimientoExcelencia :tramite="tramite" />
     </div>
   </AppShell>
 </template>
 
 <script setup>
-// Vista del Módulo de Excelencia Académica (lado del estudiante).
-//
-// Dos modos:
-//   - Sin solicitud activa: formulario para presentar la solicitud declarando
-//     el promedio general (KARDEX lo verifica después).
-//   - Con solicitud activa: seguimiento del avance que registra KARDEX
-//     (verificación y admisión, Resolución del HCC con lectura del acta y
-//     reporte final).
 import { ref, computed, onMounted } from 'vue';
 import { useTramitesStore } from '@/modules/tramites';
 import { useEstudianteStore } from '@/modules/estudiantes';
@@ -185,10 +169,9 @@ import AppIcon from '@/ui/AppIcon.vue';
 import SeguimientoExcelencia from '../components/SeguimientoExcelencia.vue';
 import { useExcelenciaStore } from '../stores/excelencia';
 import {
-    NOTA_MINIMA,
+    TIPOS_DOCUMENTO_EXCELENCIA,
+    designacionTribunal,
     esFlujoExcelencia,
-    promedioVerificado as promedioVerificadoDelTramite,
-    resolucionAdmision as resolucionAdmisionDelTramite,
 } from '../utils/flujoExcelencia';
 import { fechaLegible } from '@/modules/kardex/utils/formato';
 
@@ -198,21 +181,22 @@ const excelenciaStore = useExcelenciaStore();
 const toastStore = useToastStore();
 
 const cargando = ref(true);
-const promedio = ref('');
+const documentos = ref({
+    nota_solicitud: null,
+    certificado_calificaciones: null,
+    record_academico: null,
+});
 const observaciones = ref('');
 
-// Etapas del flujo para mostrar al estudiante el camino que sigue su solicitud.
 const FASES_EXCELENCIA = [
-    { id: 'verificacion_promedio', label: 'Verificación y admisión', icon: 'clipboard' },
+    { id: 'designacion_tribunal', label: 'Designación del tribunal', icon: 'users' },
+    { id: 'informe_tribunal', label: 'Informe de evaluación', icon: 'clipboard' },
     { id: 'resolucion_hcc', label: 'Resolución y lectura', icon: 'shield' },
     { id: 'reporte', label: 'Reporte final', icon: 'file-text' },
 ];
 
-const notaMinima = computed(() => Number(excelenciaStore.config?.nota_minima ?? NOTA_MINIMA));
-
 const tramite = computed(() => tramitesStore.tramiteActivo);
-const promedioVerificado = computed(() => promedioVerificadoDelTramite(tramite.value));
-const resolucionAdmision = computed(() => resolucionAdmisionDelTramite(tramite.value));
+const designacion = computed(() => designacionTribunal(tramite.value));
 
 // El trámite activo solo interesa si pertenece a la modalidad Excelencia
 // Académica: si es de otra modalidad, el estudiante puede optics por otra.
@@ -227,15 +211,8 @@ const excelenciaActiva = computed(() => esExcelencia.value && !terminal.value);
 const titulado = computed(() => esExcelencia.value && tramite.value?.estado_actual === 'titulado');
 const rechazado = computed(() => esExcelencia.value && tramite.value?.estado_actual === 'rechazado');
 
-const promedioNumero = computed(() => Number(promedio.value));
-const promedioValido = computed(() =>
-    promedio.value !== ''
-    && !Number.isNaN(promedioNumero.value)
-    && promedioNumero.value >= 0
-    && promedioNumero.value <= 100,
-);
-const promedioDebajoDelMinimo = computed(() =>
-    promedioValido.value && promedioNumero.value < notaMinima.value,
+const documentosCompletos = computed(() =>
+    TIPOS_DOCUMENTO_EXCELENCIA.every(({ tipo }) => Boolean(documentos.value[tipo])),
 );
 
 /**
@@ -256,19 +233,30 @@ function detalleDeError(error, defecto) {
 }
 
 /**
- * Envía la solicitud con el promedio general declarado. Al crearse, el
- * trámite queda pendiente de la verificación de KARDEX.
+ * Envía la solicitud con la documentación adjunta. Al crearse, el trámite
+ * queda pendiente de la recepción y verificación de KARDEX.
  */
 async function enviarSolicitud() {
-    if (!promedioValido.value) {
-        toastStore.warning('Ingrese su promedio general (entre 0 y 100).');
+    if (!documentosCompletos.value) {
+        toastStore.warning('Adjunte los tres documentos en PDF para continuar.');
         return;
     }
 
+    const formData = new FormData();
+    TIPOS_DOCUMENTO_EXCELENCIA.forEach(({ tipo }, index) => {
+        formData.append(`documentos[${index}][archivo]`, documentos.value[tipo]);
+        formData.append(`documentos[${index}][tipo]`, tipo);
+    });
+    formData.append('observaciones', observaciones.value.trim());
+
     try {
-        await excelenciaStore.crearSolicitud(promedioNumero.value, observaciones.value.trim() || null);
-        toastStore.success('Solicitud enviada. Queda pendiente de la verificación de KARDEX.');
-        promedio.value = '';
+        await excelenciaStore.crearSolicitud(formData);
+        toastStore.success('Solicitud enviada. KARDEX verificará tu documentación y registrar la designación del tribunal.');
+        documentos.value = {
+            nota_solicitud: null,
+            certificado_calificaciones: null,
+            record_academico: null,
+        };
         observaciones.value = '';
         await tramitesStore.cargarTramiteActivo();
     } catch (error) {

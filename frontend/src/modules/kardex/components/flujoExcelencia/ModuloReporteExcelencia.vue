@@ -1,8 +1,8 @@
 <template>
   <ModuloTarjeta
-    numero="3"
+    :numero="numero"
     titulo="Reporte Final"
-    descripcion="Emite el acta oficial de Excelencia Académica; titula al estudiante cuando su promedio cumple el mínimo reglamentario y la lectura del acta ya fue registrada."
+    descripcion="Emite el acta oficial de Excelencia Académica; titula al estudiante cuando el tribunal fue designado, evaluado y la lectura del acta ya fue registrada."
     icono="file-text"
     :completado="completado"
     :en-progreso="enProgreso"
@@ -21,14 +21,14 @@
 
       <dl class="grid sm:grid-cols-3 gap-2.5">
         <div class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
-          <dt class="dato-label">Promedio verificado</dt>
-          <dd class="text-sm font-semibold text-white mt-0.5">
-            {{ verificado !== null ? `${verificado} / 100` : '—' }}
-          </dd>
+          <dt class="dato-label">Resolución de designación</dt>
+          <dd class="text-sm font-semibold text-white mt-0.5">{{ designacion.numero_resolucion || '—' }}</dd>
         </div>
         <div class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
-          <dt class="dato-label">Resolución del HCC</dt>
-          <dd class="text-sm font-semibold text-white mt-0.5">{{ resolucion.numero_resolucion || '—' }}</dd>
+          <dt class="dato-label">Tribunal 1 / Tribunal 2</dt>
+          <dd class="text-sm font-semibold text-white mt-0.5">
+            {{ nombreMiembro(informe.tribunal_1) }} / {{ nombreMiembro(informe.tribunal_2) }}
+          </dd>
         </div>
         <div class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
           <dt class="dato-label">Lectura del acta</dt>
@@ -66,6 +66,22 @@
     <div v-else class="space-y-5">
       <dl class="grid sm:grid-cols-3 gap-2.5">
         <div class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
+          <dt class="dato-label">Resolución de designación</dt>
+          <dd class="text-sm font-semibold text-white mt-0.5">{{ designacion.numero_resolucion || '—' }}</dd>
+        </div>
+        <div class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
+          <dt class="dato-label">Fecha de designación</dt>
+          <dd class="text-sm font-semibold text-white mt-0.5">
+            {{ designacion.fecha_resolucion ? fechaLegible(designacion.fecha_resolucion) : '—' }}
+          </dd>
+        </div>
+        <div class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
+          <dt class="dato-label">Tribunal 1 / Tribunal 2</dt>
+          <dd class="text-sm font-semibold text-white mt-0.5">
+            {{ nombreMiembro(informe.tribunal_1) }} / {{ nombreMiembro(informe.tribunal_2) }}
+          </dd>
+        </div>
+        <div class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
           <dt class="dato-label">N.º de Resolución del HCC</dt>
           <dd class="text-sm font-semibold text-white mt-0.5">{{ resolucion.numero_resolucion || '—' }}</dd>
         </div>
@@ -80,22 +96,6 @@
           <dd class="text-sm font-semibold text-white mt-0.5">
             {{ fechaLegible(resolucion.fecha_lectura_acta || '') || '—' }}
           </dd>
-        </div>
-        <div class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
-          <dt class="dato-label">Promedio declarado</dt>
-          <dd class="text-sm font-semibold text-white mt-0.5">
-            {{ declarado !== null ? `${declarado} / 100` : '—' }}
-          </dd>
-        </div>
-        <div class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
-          <dt class="dato-label">Promedio verificado</dt>
-          <dd class="text-sm font-semibold text-white mt-0.5">
-            {{ verificado !== null ? `${verificado} / 100` : '—' }}
-          </dd>
-        </div>
-        <div class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
-          <dt class="dato-label">Mínimo exigido</dt>
-          <dd class="text-sm font-semibold text-white mt-0.5">{{ notaMinima }} / 100</dd>
         </div>
       </dl>
 
@@ -154,24 +154,24 @@
       <h1 class="doc-titulo">Acta de Excelencia Académica</h1>
 
       <section class="doc-seccion">
-        <h2 class="doc-seccion__titulo">1. Verificación del promedio general</h2>
+        <h2 class="doc-seccion__titulo">1. Designación del Tribunal de Evaluación</h2>
         <table class="doc-tabla">
           <tbody>
             <tr>
-              <td class="doc-tabla__desc">Promedio declarado por el estudiante</td>
-              <td class="doc-tabla__detalle">{{ declarado !== null ? declarado : '—' }}</td>
+              <td class="doc-tabla__desc">Resolución del HCC de designación</td>
+              <td class="doc-tabla__detalle">{{ designacion.numero_resolucion || '—' }}</td>
             </tr>
             <tr>
-              <td class="doc-tabla__desc">Promedio verificado por el HCC</td>
-              <td class="doc-tabla__detalle">{{ verificado !== null ? verificado : '—' }}</td>
+              <td class="doc-tabla__desc">Fecha de la resolución</td>
+              <td class="doc-tabla__detalle">{{ designacion.fecha_resolucion ? fechaLegible(designacion.fecha_resolucion) : '—' }}</td>
             </tr>
             <tr>
-              <td class="doc-tabla__desc">Promedio mínimo exigido por la modalidad</td>
-              <td class="doc-tabla__detalle">{{ notaMinima }}</td>
+              <td class="doc-tabla__desc">Tribunal 1</td>
+              <td class="doc-tabla__detalle">{{ nombreMiembro(informe.tribunal_1) }}</td>
             </tr>
             <tr>
-              <td class="doc-tabla__desc">Resultado de la verificación</td>
-              <td class="doc-tabla__detalle">{{ verificado !== null && verificado >= notaMinima ? 'HABILITADO' : 'NO HABILITADO' }}</td>
+              <td class="doc-tabla__desc">Tribunal 2</td>
+              <td class="doc-tabla__detalle">{{ nombreMiembro(informe.tribunal_2) }}</td>
             </tr>
           </tbody>
         </table>
@@ -200,15 +200,12 @@
       <section class="doc-seccion">
         <h2 class="doc-seccion__titulo">3. Dictamen</h2>
         <p class="doc-parrafo">
-          En virtud del promedio general sobresaliente verificado por el Consejo de la
-          Universidad Pública de El Alto y al cumplimiento del plan de estudios de la
-          carrera de {{ carrera }}, el Consejo RESUELVE <strong>TITULAR</strong> al estudiante
+          En virtud de la designación del Tribunal de Evaluación, del Informe de Evaluación
+          presentado y del cumplimiento del plan de estudios de la carrera de {{ carrera }},
+          el Consejo RESUELVE <strong>TITULAR</strong> al estudiante
           <strong>{{ estudiante.nombre }}</strong>, con C.I. {{ estudiante.ci }} y R.U.
           {{ estudiante.ru }}, en la modalidad de
           <strong>{{ tramite?.modalidad?.nombre || 'Excelencia Académica' }}</strong>.
-        </p>
-        <p class="doc-parrafo">
-          Promedio final verificado: <strong>{{ verificado !== null ? verificado : '—' }}</strong>.
         </p>
       </section>
 
@@ -241,9 +238,9 @@
 import { computed, ref } from 'vue';
 import html2pdf from 'html2pdf.js';
 import {
-    NOTA_MINIMA,
-    promedioDeclarado,
-    promedioVerificado,
+    designacionTribunal,
+    informeTribunal,
+    nombreDocente,
     resolucionHcc,
     validarModulo,
 } from '@/modules/excelencia/utils/flujoExcelencia';
@@ -254,13 +251,12 @@ import AppIcon from '@/ui/AppIcon.vue';
 import ModuloTarjeta from '../flujo/ModuloTarjeta.vue';
 
 const props = defineProps({
+    numero: { type: [Number, String], required: true },
     completado: { type: Boolean, default: false },
     enProgreso: { type: Boolean, default: false },
     bloqueado: { type: Boolean, default: false },
     cargando: { type: Boolean, default: false },
     tramite: { type: Object, default: null },
-    // Mínimo reglamentario: lo define el backend (`config/excelencia.php`).
-    notaMinima: { type: Number, default: NOTA_MINIMA },
 });
 
 const emit = defineEmits(['guardar']);
@@ -272,12 +268,13 @@ const contenedorReporte = ref(null);
 const generando = ref(false);
 const errores = ref([]);
 
-const declarado = computed(() => promedioDeclarado(props.tramite));
-const verificado = computed(() => promedioVerificado(props.tramite));
+const designacion = computed(() => designacionTribunal(props.tramite));
+const informe = computed(() => informeTribunal(props.tramite));
 const resolucion = computed(() => resolucionHcc(props.tramite));
 
-// Mínimo reglamentario vigente (lo define el backend).
-const notaMinima = computed(() => Number(props.notaMinima) || NOTA_MINIMA);
+function nombreMiembro(miembro) {
+    return nombreDocente(miembro) || '—';
+}
 
 const carrera = 'Economía';
 

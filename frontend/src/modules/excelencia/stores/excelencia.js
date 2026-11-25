@@ -6,7 +6,7 @@ import { excelenciaService } from '../services/excelencia';
  *
  * Conserva la configuración del módulo (promedio mínimo reglamentario, leído
  * del backend) y encapsula la acción del estudiante: presentar la solicitud
- * con su promedio general declarado. El avance del trámite se sigue con el
+ * con la documentación PDF adjunta. El avance del trámite se sigue con el
  * store genérico de trámites.
  */
 export const useExcelenciaStore = defineStore('excelencia', {
@@ -41,14 +41,13 @@ export const useExcelenciaStore = defineStore('excelencia', {
         /**
          * Presenta la solicitud de Excelencia Académica.
          *
-         * @param {number|string} promedio      Promedio general declarado.
-         * @param {string|null}  observaciones Observación opcional del estudiante.
+         * @param {FormData} formData Documentos PDF y observaciones opcionales.
          * @returns {Promise<Object>} Trámite creado.
          */
-        async crearSolicitud(promedio, observaciones = null) {
+        async crearSolicitud(formData) {
             this.enviando = true;
             try {
-                const response = await excelenciaService.crearSolicitud(promedio, observaciones);
+                const response = await excelenciaService.crearSolicitud(formData);
                 this.enviando = false;
                 return response;
             } catch (error) {

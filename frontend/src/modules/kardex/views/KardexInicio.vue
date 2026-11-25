@@ -87,7 +87,7 @@
             </p>
             <div v-if="listaTitulaciones.length" class="flex flex-wrap gap-2 mt-3 max-h-32 overflow-y-auto pr-1">
               <button
-                v-for="t in listaTitulaciones"
+                v-for="t in listaOtrasTitulaciones"
                 :key="t.id_tramite || t.id_estudiante"
                 type="button"
                 class="inline-flex items-center gap-2 rounded-full border border-sky-500/30 bg-primary/60 px-3 py-1.5 text-xs font-semibold text-white hover:border-sky-400 hover:bg-sky-500/20 transition"
@@ -96,6 +96,40 @@
                 <AppIcon name="user" :size="13" />
                 {{ t.nombres }} {{ t.apellidos }}
                 <span class="text-slate-400">{{ t.modalidad }}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Alerta de solicitudes nuevas de Excelencia Académica -->
+      <div
+        v-if="conExcelencia > 0"
+        class="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4 sm:p-5"
+      >
+        <div class="flex items-start gap-3">
+          <div class="w-10 h-10 shrink-0 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center">
+            <AppIcon name="award" :size="22" />
+          </div>
+          <div class="min-w-0 flex-1">
+            <p class="font-bold text-white">
+              {{ conExcelencia }} {{ conExcelencia === 1 ? 'estudiante solicitó' : 'estudiantes solicitaron' }}
+              la modalidad de Excelencia Académica
+            </p>
+            <p class="text-sm text-slate-300 mt-0.5">
+              Seleccione al estudiante para verificar en Registro de Postulante la documentación que presentó.
+            </p>
+            <div v-if="listaExcelencia.length" class="flex flex-wrap gap-2 mt-3 max-h-32 overflow-y-auto pr-1">
+              <button
+                v-for="t in listaExcelencia"
+                :key="t.id_tramite || t.id_estudiante"
+                type="button"
+                class="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-primary/60 px-3 py-1.5 text-xs font-semibold text-white hover:border-emerald-400 hover:bg-emerald-500/20 transition"
+                @click="abrirRegistroExcelencia(t)"
+              >
+                <AppIcon name="user" :size="13" />
+                {{ t.nombres }} {{ t.apellidos }}
+                <span class="text-slate-400">CI {{ t.ci }}</span>
               </button>
             </div>
           </div>
@@ -233,7 +267,14 @@ const listaTitulaciones = computed(() => {
     ? titulaciones.filter((t) => t.estado_actual === 'solicitud_presentada')
     : [];
 });
-const conModalidad = computed(() => listaTitulaciones.value.length);
+const listaExcelencia = computed(() =>
+  listaTitulaciones.value.filter((t) => t.modalidad === 'Excelencia Académica'),
+);
+const listaOtrasTitulaciones = computed(() =>
+  listaTitulaciones.value.filter((t) => t.modalidad !== 'Excelencia Académica'),
+);
+const conExcelencia = computed(() => listaExcelencia.value.length);
+const conModalidad = computed(() => listaOtrasTitulaciones.value.length);
 
 const porcentaje = (valor, total) => (total > 0 ? Math.round(((valor || 0) / total) * 100) : 0);
 
@@ -244,6 +285,17 @@ const abrirRegistro = (postulante) => {
     query: {
       identificador: postulante.ci || postulante.registro_universitario,
       etapa: 'credenciales',
+    },
+  });
+};
+
+/** Abre Registro de Postulante en la verificación documental de Excelencia. */
+const abrirRegistroExcelencia = (titulacion) => {
+  router.push({
+    name: 'KardexRegistroPostulante',
+    query: {
+      identificador: titulacion.ci || titulacion.registro_universitario,
+      etapa: 'verificacion',
     },
   });
 };

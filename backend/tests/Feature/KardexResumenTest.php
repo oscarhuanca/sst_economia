@@ -118,6 +118,32 @@ class KardexResumenTest extends TestCase
         $this->assertSame('solicitud_presentada', $listado['estado_actual']);
     }
 
+    public function test_el_resumen_incluye_la_solicitud_nueva_de_excelencia_academica(): void
+    {
+        $excelencia = Modalidad::factory()->excelencia()->create();
+        $estudiante = Estudiante::factory()->create([
+            'nombres' => 'Solicitud',
+            'apellidos' => 'Excelencia Nueva',
+        ]);
+        $tramite = Tramite::factory()->create([
+            'id_estudiante' => $estudiante->id_estudiante,
+            'id_modalidad' => $excelencia->id_modalidad,
+            'estado_actual' => 'solicitud_presentada',
+        ]);
+
+        $estudiantes = $this->consultarResumen()['estudiantes'];
+
+        $this->assertSame(1, $estudiantes['con_modalidad']);
+        $this->assertCount(1, $estudiantes['titulaciones']);
+
+        $listado = $estudiantes['titulaciones'][0];
+        $this->assertSame($tramite->id_tramite, $listado['id_tramite']);
+        $this->assertSame($estudiante->ci, $listado['ci']);
+        $this->assertSame('Solicitud Excelencia Nueva', $listado['nombres'].' '.$listado['apellidos']);
+        $this->assertSame('Excelencia Académica', $listado['modalidad']);
+        $this->assertSame('solicitud_presentada', $listado['estado_actual']);
+    }
+
     /**
      * Consulta el resumen autenticado como usuario de gestión.
      *

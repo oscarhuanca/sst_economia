@@ -40,6 +40,8 @@ export const ESTADOS_OK = [
   'reporte_examen_generado',
   // Excelencia Académica
   'promedio_verificado',
+  'tribunal_designado',
+  'informe_tribunal_registrado',
   'resolucion_hcc_registrada',
 ];
 
@@ -77,6 +79,8 @@ export function esTerminal(estado, modalidad) {
 export const ETIQUETAS_DOCUMENTO = {
   nota_solicitud: 'Nota de Solicitud',
   certificado_notas: 'Certificado de Notas',
+  certificado_calificaciones: 'Certificado de Calificaciones',
+  record_academico: 'Récord Académico',
   carta_solicitud: 'Carta de Solicitud',
   solicitud_examen: 'Solicitud de Examen de Grado',
   certificado_conclusion: 'Certificado de Conclusión de Estudios',

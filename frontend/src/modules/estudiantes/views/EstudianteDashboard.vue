@@ -106,10 +106,7 @@
 
         <!-- Excelencia Académica: el seguimiento propio de la modalidad -->
         <div v-else-if="tramitesStore.tramiteActivo && esExcelenciaActivo">
-          <SeguimientoExcelencia
-            :tramite="tramitesStore.tramiteActivo"
-            :nota-minima="excelenciaStore.config?.nota_minima ?? NOTA_MINIMA"
-          />
+          <SeguimientoExcelencia :tramite="tramitesStore.tramiteActivo" />
           <router-link to="/estudiante/excelencia" class="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-orange-300 hover:text-orange-200">
             <AppIcon name="arrow-left" :size="15" class="rotate-180" />
             Ir al módulo de Excelencia Académica
@@ -252,8 +249,8 @@
                 <div>
                   <h2 class="text-lg font-extrabold text-white transition-colors duration-200 group-hover:text-amber-300">Excelencia Académica</h2>
                   <p class="text-sm text-slate-400">
-                    Solicita la modalidad por promedio sobresaliente (mínimo
-                    {{ notaMinimaExcelencia }} puntos) y sigue la verificación de Kardex.
+                    Solicita la modalidad y sigue la designación del tribunal,
+                    el informe de evaluación y la lectura del acta registrados por Kardex.
                   </p>
                 </div>
               </div>
@@ -306,8 +303,7 @@ import { useEstudianteStore } from '../stores/estudiante';
 import SeguimientoExamenGrado from '../components/SeguimientoExamenGrado.vue';
 import SeguimientoExcelencia from '@/modules/excelencia/components/SeguimientoExcelencia.vue';
 import { esFlujoExamen } from '@/modules/examen/utils/flujoExamen';
-import { esFlujoExcelencia, NOTA_MINIMA } from '@/modules/excelencia/utils/flujoExcelencia';
-import { useExcelenciaStore } from '@/modules/excelencia';
+import { esFlujoExcelencia } from '@/modules/excelencia/utils/flujoExcelencia';
 import { AppShell } from '@/modules/layout';
 import AppIcon from '@/ui/AppIcon.vue';
 import StatCard from '@/ui/StatCard.vue';
@@ -316,7 +312,6 @@ const tramitesStore = useTramitesStore();
 const estudianteStore = useEstudianteStore();
 const tesisStore = useTesisStore();
 const trabajoDirigidoStore = useTrabajoDirigidoStore();
-const excelenciaStore = useExcelenciaStore();
 
 // Es null cuando el perfil aún no fue registrado.
 const perfilEstudiante = computed(() => estudianteStore.perfilEstudiante);
@@ -382,12 +377,8 @@ const esTrabajoDirigidoActivo = computed(
 // muestra el avance en tarjetas, los intentos y la última actualización.
 const esExamenActivo = computed(() => esFlujoExamen(tramitesStore.tramiteActivo));
 
-// true si el trámite activo es de la modalidad Excelencia Académica: el
-// seguimiento propio de la modalidad muestra el avance del flujo por promedio.
+// true si el trámite activo es de la modalidad Excelencia Académica.
 const esExcelenciaActivo = computed(() => esFlujoExcelencia(tramitesStore.tramiteActivo));
-
-// Mínimo de promedio exigido por la modalidad (lo define el backend).
-const notaMinimaExcelencia = computed(() => Number(excelenciaStore.config?.nota_minima) || NOTA_MINIMA);
 
 // Seguimiento en vivo del Examen de Grado: mientras el portal esté abierto con
 // esta modalidad, el trámite activo se refresca en segundo plano (silencioso,
@@ -436,8 +427,6 @@ onMounted(async () => {
     sinPerfil.value = !estudianteStore.perfilEstudiante;
     await Promise.all([
         tramitesStore.cargarTramiteActivo(),
-        // El mínimo de promedio de la Excelencia Académica lo define el backend.
-        excelenciaStore.cargarConfig(),
         // Plazos de corrección y re-opción de la modalidad Trabajo Dirigido.
         trabajoDirigidoStore.cargarConfig(),
     ]);

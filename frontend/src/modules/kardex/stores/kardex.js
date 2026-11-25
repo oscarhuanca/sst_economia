@@ -465,6 +465,44 @@ export const useKardexStore = defineStore('kardex', {
                 this.cargando = false;
             }
         },
+        async verificarDocumentosExcelencia(documentos, observaciones = '') {
+            this.cargando = true;
+            this.errorMessage = null;
+            try {
+                if (!this.tramite) return null;
+
+                if (this.simulado) {
+                    this.tramite = {
+                        ...this.tramite,
+                        hitos: {
+                            ...(this.tramite.hitos || {}),
+                            recepcion_documentos: {
+                                verificado: true,
+                                verificado_en: new Date().toISOString(),
+                                observaciones: observaciones || null,
+                                documentos: Object.fromEntries(
+                                    Object.entries(documentos).map(([tipo]) => [tipo, { marcado: true }]),
+                                ),
+                            },
+                        },
+                    };
+                    return this.tramite;
+                }
+
+                const { data } = await kardexService.verificarDocumentosExcelencia(
+                    this.tramite.id_tramite,
+                    documentos,
+                    observaciones,
+                );
+                this.tramite = data;
+                return data;
+            } catch (error) {
+                this.errorMessage = this._mensajeDeError(error, 'No se pudo verificar la documentación de Excelencia Académica.');
+                return null;
+            } finally {
+                this.cargando = false;
+            }
+        },
         /**
          * Guarda un módulo del flujo de Examen de Grado y avanza el estado del
          * trámite. La respuesta ya incluye `historial_examen`, que es la fuente

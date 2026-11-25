@@ -31,6 +31,8 @@ class GuardarModuloExcelenciaRequest extends FormRequest
     {
         return [
             'datos' => ['present', 'array'],
+            'resolucion_tribunal' => ['nullable', 'file', 'mimes:pdf', 'max:10240'],
+            'informe_evaluacion_tribunal' => ['nullable', 'file', 'mimes:pdf', 'max:10240'],
             'informe_verificacion' => ['nullable', 'file', 'mimes:pdf', 'max:10240'],
             'informe_lectura_acta' => ['nullable', 'file', 'mimes:pdf', 'max:10240'],
         ];
@@ -44,6 +46,12 @@ class GuardarModuloExcelenciaRequest extends FormRequest
         return [
             'datos.present' => 'Debe enviar los datos del módulo de Excelencia Académica.',
             'datos.array' => 'Los datos del módulo deben ser un objeto.',
+            'resolucion_tribunal.file' => 'La resolución de designación del tribunal debe ser un archivo PDF.',
+            'resolucion_tribunal.mimes' => 'La resolución de designación del tribunal debe ser un PDF.',
+            'resolucion_tribunal.max' => 'La resolución de designación del tribunal no puede superar los 10 MB.',
+            'informe_evaluacion_tribunal.file' => 'El informe de evaluación del tribunal debe ser un archivo PDF.',
+            'informe_evaluacion_tribunal.mimes' => 'El informe de evaluación del tribunal debe ser un PDF.',
+            'informe_evaluacion_tribunal.max' => 'El informe de evaluación del tribunal no puede superar los 10 MB.',
             'informe_verificacion.file' => 'El informe de verificación debe ser un archivo PDF.',
             'informe_verificacion.mimes' => 'El informe de verificación debe ser un PDF.',
             'informe_verificacion.max' => 'El informe de verificación no puede superar los 10 MB.',

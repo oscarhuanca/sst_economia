@@ -46,7 +46,8 @@ export const SECUENCIAS = {
   ],
   'Excelencia Académica': [
     'solicitud_presentada',
-    'promedio_verificado',
+    'tribunal_designado',
+    'informe_tribunal_registrado',
     'resolucion_hcc_registrada',
     'titulado',
   ],
@@ -88,7 +89,8 @@ export const SIGUIENTES_POR_ESTADO = {
   reporte_examen_generado: ['titulado'],
 
   // --- Excelencia Académica (espejo de TramiteStateService::TRANSITIONS) ---
-  promedio_verificado: ['resolucion_hcc_registrada'],
+  tribunal_designado: ['informe_tribunal_registrado'],
+  informe_tribunal_registrado: ['resolucion_hcc_registrada'],
   resolucion_hcc_registrada: ['titulado'],
 
   reprobado: [],
@@ -610,12 +612,7 @@ export const POSTULANTES_MOCK = [
       observaciones: null,
       hitos: {
         solicitud_presentada: '2026-09-18',
-        modulos: {
-          verificacion_promedio: {
-            promedio_declarado: 88.4,
-            nota_minima: 80,
-          },
-        },
+        modulos: {},
       },
       created_at: '2026-09-18T08:00:00.000000Z',
       updated_at: '2026-09-18T08:00:00.000000Z',
@@ -885,8 +882,7 @@ const REAPERTURA_POR_ESTADO = {
 
 const MAXIMO_INTENTOS_MOCK = 3;
 const NOTA_MINIMA_MOCK = 51;
-// Mínimo de promedio exigido por la modalidad de Excelencia Académica.
-const NOTA_MINIMA_EXCELENCIA_MOCK = 80;
+const RESULTADOS_EVALUACION_MOCK = ['correcto', 'faltante', 'incorrecto'];
 
 /** Resuelve el estado y el resultado de un sorteo a partir de sus datos (1 paso). */
 function destinoSorteoMock(datos, prefijo) {
@@ -1131,10 +1127,9 @@ export function guardarModuloExamenMock(tramite, moduloId, datos) {
 /**
  * Simula POST /tramites/{id}/excelencia/{modulo}.
  *
- * El flujo de Excelencia Académica es lineal: verificación del promedio y
- * Resolución de admisión (única bifurcación, que puede dejar la solicitud
- * RECHAZADA), registro de la Resolución del HCC con la lectura del acta y
- * reporte final, que titula al estudiante.
+ * El flujo de Excelencia Académica es lineal: designación del tribunal,
+ * informe de evaluación, Resolución del HCC con lectura del acta y reporte
+ * final, que titula al estudiante.
  *
  * @param {Object} tramite   Trámite de Excelencia Académica.
  * @param {string} moduloId  Identificador del módulo.
@@ -1146,39 +1141,40 @@ export function guardarModuloExcelenciaMock(tramite, moduloId, datos) {
   const guardado = { ...(t.hitos?.modulos?.[moduloId] || {}), ...datos };
 
   let destino;
-  if (moduloId === 'verificacion_promedio') {
-    const nota = Number(datos.promedio);
-    const resultado = datos.resultado;
-
-    if (!Number.isFinite(nota) || nota < 0 || nota > 100) {
-      throw { message: 'Ingrese un promedio verificado entre 0 y 100.' };
-    }
-    if (resultado !== 'aceptado' && resultado !== 'rechazado') {
-      throw { message: 'Seleccione si la solicitud fue ACEPTADA o RECHAZADA.' };
-    }
+  if (moduloId === 'designacion_tribunal') {
     if (!String(datos.numero_resolucion || '').trim() || !datos.fecha_resolucion) {
-      throw { message: 'Registre el número y la fecha de la Resolución del HCC.' };
+      throw { message: 'Registre el número y la fecha de la Resolución del HCC de designación.' };
     }
     if (datos.confirmado !== true) {
-      throw { message: 'Marque la verificación del promedio y de la Resolución del HCC.' };
+      throw { message: 'Marque la verificación de la designación del tribunal.' };
     }
-    if (resultado === 'aceptado' && nota < NOTA_MINIMA_EXCELENCIA_MOCK) {
-      throw {
-        message: `No es posible ACEPTAR la solicitud: el promedio ${nota} es inferior al mínimo de ${NOTA_MINIMA_EXCELENCIA_MOCK}.`,
-      };
+
+    Object.assign(guardado, { verificado: true, fecha_verificacion: hoy.slice(0, 10) });
+    destino = { estado: 'tribunal_designado', resultado: 'tribunal_designado' };
+  } else if (moduloId === 'informe_tribunal') {
+    const t1 = datos.tribunal_1;
+    const t2 = datos.tribunal_2;
+
+    if (!t1?.id_docente || !t2?.id_docente) {
+      throw { message: 'Seleccione el Tribunal 1 y el Tribunal 2 del catálogo de docentes.' };
+    }
+    if (String(t1.id_docente) === String(t2.id_docente)) {
+      throw { message: 'Tribunal 1 y Tribunal 2 deben ser docentes distintos.' };
+    }
+    if (!RESULTADOS_EVALUACION_MOCK.includes(datos.resultado_evaluacion)) {
+      throw { message: 'Seleccione el resultado de la evaluación del tribunal.' };
+    }
+    if (datos.confirmado !== true) {
+      throw { message: 'Marque la verificación del Informe de Evaluación del Tribunal.' };
     }
 
     Object.assign(guardado, {
-      promedio: nota,
-      nota_minima: NOTA_MINIMA_EXCELENCIA_MOCK,
-      aprobado: resultado === 'aceptado',
+      tribunal: [t1, t2],
+      resultado_evaluacion: datos.resultado_evaluacion,
       verificado: true,
       fecha_verificacion: hoy.slice(0, 10),
     });
-
-    destino = resultado === 'aceptado'
-      ? { estado: 'promedio_verificado', resultado: 'aceptado' }
-      : { estado: 'rechazado', resultado: 'rechazado' };
+    destino = { estado: 'informe_tribunal_registrado', resultado: 'informe_tribunal_registrado' };
   } else if (moduloId === 'resolucion_hcc') {
     if (
       !String(datos.numero_resolucion || '').trim()
@@ -1192,11 +1188,15 @@ export function guardarModuloExcelenciaMock(tramite, moduloId, datos) {
     Object.assign(guardado, { verificado: true, fecha_verificacion: hoy.slice(0, 10) });
     destino = { estado: 'resolucion_hcc_registrada', resultado: 'resolucion_registrada' };
   } else if (moduloId === 'reporte') {
-    const verificacion = t.hitos?.modulos?.verificacion_promedio || {};
+    const designacion = t.hitos?.modulos?.designacion_tribunal || {};
+    const informe = t.hitos?.modulos?.informe_tribunal || {};
     const resolucion = t.hitos?.modulos?.resolucion_hcc || {};
 
-    if (verificacion.promedio === undefined) {
-      throw { message: 'Registre primero la verificación del promedio del estudiante.' };
+    if (!designacion.numero_resolucion) {
+      throw { message: 'Registre primero la designación del Tribunal de Evaluación.' };
+    }
+    if (!informe.verificado) {
+      throw { message: 'Registre el Informe de Evaluación del Tribunal antes de emitir el título.' };
     }
     if (!resolucion.fecha_lectura_acta) {
       throw { message: 'Registre la fecha de lectura del acta antes de emitir el título.' };
@@ -1212,16 +1212,11 @@ export function guardarModuloExcelenciaMock(tramite, moduloId, datos) {
   t.observaciones = datos.observaciones || t.observaciones;
   t.hitos = { ...(t.hitos || {}) };
   t.hitos.modulos = { ...(t.hitos.modulos || {}), [moduloId]: guardado };
-  // El hito del estado alcanzado queda fechado para el seguimiento.
   t.hitos[destino.estado] = hoy.slice(0, 10);
   t.estados = [
     ...(t.estados || []),
     { nombre_estado: destino.estado, descripcion: destino.estado, observaciones: datos.observaciones || null, created_at: hoy },
   ];
-  // El promedio verificado actualiza el promedio global del estudiante.
-  if (moduloId === 'verificacion_promedio' && t.estudiante) {
-    t.estudiante.promedio_global = Number(datos.promedio);
-  }
   t.siguientes_estados = SIGUIENTES_POR_ESTADO[destino.estado] || [];
   t.secuencia = SECUENCIAS['Excelencia Académica'];
   return t;
