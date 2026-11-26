@@ -440,67 +440,70 @@ function camposDeModulo(config, moduloId, datos, tramite) {
       ]);
 
     case 'tribunal_revisor':
-      return filas([
-        {
-          etiqueta: 'Nota de Suficiencia del tutor',
-          valor: datos.nota_suficiencia_tutor?.nombre
-            || (datos.nota_suficiencia_tutor_entregada ? 'Entregada' : null),
-          ruta: datos.nota_suficiencia_tutor?.ruta || null,
-        },
-        {
-          etiqueta: 'Resolución de designación del tribunal revisor',
-          valor: datos.resolucion_tribunal?.nombre
-            || (datos.resolucion_tribunal_entregada ? 'Confirmada' : null),
-          ruta: datos.resolucion_tribunal?.ruta || null,
-        },
-        { etiqueta: 'N.º de Resolución del HCC', valor: datos.numero_resolucion },
-        { etiqueta: 'Fecha de la resolución', valor: fechaLegible(datos.fecha_resolucion) },
-        ...ROLES_TRIBUNAL.map((rol) => {
-          const miembro = (datos.tribunal || []).find((t) => t.rol === rol);
-          const nota = miembro?.nota_suficiencia?.nombre
-            || (miembro?.nota_suficiencia_entregada ? 'Entregada' : null);
-          return {
-            etiqueta: ETIQUETAS_ROL_TRIBUNAL[rol] || rol,
-            valor: [miembro?.nombre, nota].filter(Boolean).join(' · ') || null,
-            ruta: miembro?.nota_suficiencia?.ruta || null,
-          };
-        }),
-      ]);
-
-    case 'defensa':
-      return filas([
-        {
-          etiqueta: '8 empastados y CD',
-          valor: datos.empastados_cd_entregados ? 'Entregados' : null,
-        },
-        { etiqueta: 'N.º de Resolución de Aprobación Final', valor: datos.numero_resolucion },
-        { etiqueta: 'Fecha de la defensa', valor: fechaLegible(datos.fecha_defensa) },
-        {
-          etiqueta: 'Nota final',
-          valor: datos.nota_final === '' || datos.nota_final === null || datos.nota_final === undefined
-            ? null
-            : `${datos.nota_final} / 100`,
-        },
-      ]);
-
+      if (modalidad !== 'Tesis de Grado' && !datos.nota_suficiencia_tutor_entregada) {
+        errores.push('Confirme que el tutor entregó la Nota de Suficiencia.');
+      }
+      if (!datos.resolucion_tribunal_entregada) {
+        errores.push('Confirme que se cuenta con la Resolución de designación del tribunal revisor.');
+      }
+      if (!val(datos.numero_resolucion)) errores.push('Ingrese el número de Resolución del HCC.');
+      if (!val(datos.fecha_resolucion)) errores.push('Seleccione la fecha de la Resolución.');
+      if (!Array.isArray(datos.tribunal) || datos.tribunal.length < ROLES_TRIBUNAL.length) {
+        errores.push('Complete los miembros del tribunal revisor (Tribunal 1, Tribunal 2 y Tribunal 3).');
+      } else {
+        ROLES_TRIBUNAL.forEach((rol) => {
+          const miembro = datos.tribunal.find((t) => t.rol === rol);
+          const etiquetaRol = ETIQUETAS_ROL_TRIBUNAL[rol] || rol;
+          if (!miembro || !val(miembro.nombre)) {
+            errores.push(`Complete el nombre del ${etiquetaRol}.`);
+          }
+          if (!miembro?.nota_suficiencia_entregada) {
+            errores.push(`Confirme que el ${etiquetaRol} entregó su Nota de Suficiencia.`);
+          }
+        });
+      }
+      break;
+    case 'defensa': {
+      if (!datos.empastados_cd_entregados) {
+        errores.push('Confirme que el estudiante presentó los 8 empastados y el CD de su tesis de grado.');
+      }
+      const paso = Number(datos.paso ?? 3);
+      if (paso >= 2) {
+        if (!val(datos.numero_resolucion)) errores.push('Ingrese el número de Resolución de Aprobación Final.');
+        if (!val(datos.fecha_defensa)) errores.push('Seleccione la fecha de la defensa.');
+      }
+      if (paso >= 3) {
+        if (datos.nota_final === null || datos.nota_final === undefined || datos.nota_final === '') {
+          errores.push('Ingrese la nota final de la defensa.');
+        } else {
+          const nota = Number(datos.nota_final);
+          if (Number.isNaN(nota) || nota < RANGO_NOTA_DEFENSA[0] || nota > RANGO_NOTA_DEFENSA[1]) {
+            errores.push(`La nota debe estar entre ${RANGO_NOTA_DEFENSA[0]} y ${RANGO_NOTA_DEFENSA[1]}.`);
+          } else if (nota < NOTA_MINIMA_DEFENSA) {
+            // Una nota reprobada es válida: deja el trámite en estado
+            // terminal y el estudiante debe re-solicitar la modalidad.
+            advertencias.push(
+              `Con ${nota} puntos la defensa queda REPROBADO `
+              + `(mínimo de aprobación: ${NOTA_MINIMA_DEFENSA}). El flujo de titulación `
+              + 'termina aquí y el estudiante deberá volver a solicitar la modalidad de graduación.',
+            );
+          }
+        }
+      }
+      break;
+    }
     case 'reporte':
-      return filas([
-        { etiqueta: 'Fecha de generación', valor: fechaLegible(datos.generado) },
-        { etiqueta: 'Formato', valor: datos.formato ? String(datos.formato).toUpperCase() : null },
-      ]);
-
+      break;
     case 'publicacion':
-      return filas([
-        {
-          etiqueta: config.etiquetaPublicacion || 'Trabajo de investigación',
-          valor: datos.archivo?.nombre,
-          ruta: datos.archivo?.ruta || null,
-        },
-      ]);
-
+      if (!val(datos.archivo?.nombre)) {
+        errores.push('Debe existir un documento de publicación subido por el estudiante.');
+      }
+      break;
     default:
-      return [];
+      errores.push('Módulo no reconocido.');
   }
+
+  return { ok: errores.length === 0, errores, advertencias };
 }
 
 const BADGE_PERFIL_POR_ESTADO = {
@@ -519,17 +522,6 @@ function estadoPerfilDe(tramite) {
   return 'solicitud_presentada';
 }
 
-/**
- * Actualizaciones que Kardex ha registrado en el trámite, listas para el
- * estudiante: cada módulo del flujo con su estado, su fecha y el detalle que
- * Kardex cargó. No incluye nada ajeno a este trámite: solo los módulos
- * registrados en `hitos.modulos` y los estados de su propio historial.
- *
- * @param {Object|null} tramite Trámite del estudiante.
- * @returns {Array<{id:string,label:string,estado:string,badge:string,icon:string,
- *                  fecha:string|null,campos:Array<{etiqueta:string,valor:*}>}>}
- *          Módulos registrados, en el orden del flujo; vacío si aún no hay ninguno.
- */
 export function actualizacionesKardex(tramite) {
   const config = configDeTramite(tramite);
   if (!config) return [];
@@ -553,24 +545,6 @@ export function actualizacionesKardex(tramite) {
   }).filter((a) => a.campos.length > 0 || a.fecha !== null);
 }
 
-/**
- * Valida los datos de un módulo antes de guardar.
- *
- * El perfil es el módulo con decisión: con `accion: rechazar` solo exige la
- * observación (el motivo que verá el estudiante) y con `accion: aprobar` valida
- * el título presentado y los 3 documentos verificados (el PDF adjunto es
- * opcional).
- *
- * La defensa se registra en tres pasos: `paso: 1` valida la entrega de los 8
- * empastados y el CD; `paso: 2` la Resolución de Aprobación Final y la fecha de
- * la defensa; `paso: 3` (o sin `paso`, guardado completo) exige además la nota
- * final.
- *
- * @param {string} moduloId   Identificador del módulo.
- * @param {Object} datos      Datos del formulario del módulo.
- * @param {string} [modalidad] Modalidad (deducida del módulo si se omite).
- * @returns {{ok:boolean, errores:string[], advertencias:string[]}} Resultado de la validación.
- */
 export function validarModulo(moduloId, datos = {}, modalidad = null) {
   const config = configDe(modalidad) || configDeModulo(moduloId);
   const errores = [];
@@ -625,7 +599,7 @@ export function validarModulo(moduloId, datos = {}, modalidad = null) {
       }
       break;
     case 'tribunal_revisor':
-      if (!datos.nota_suficiencia_tutor_entregada) {
+      if (modalidad !== 'Tesis de Grado' && !datos.nota_suficiencia_tutor_entregada) {
         errores.push('Confirme que el tutor entregó la Nota de Suficiencia.');
       }
       if (!datos.resolucion_tribunal_entregada) {
@@ -665,8 +639,6 @@ export function validarModulo(moduloId, datos = {}, modalidad = null) {
           if (Number.isNaN(nota) || nota < RANGO_NOTA_DEFENSA[0] || nota > RANGO_NOTA_DEFENSA[1]) {
             errores.push(`La nota debe estar entre ${RANGO_NOTA_DEFENSA[0]} y ${RANGO_NOTA_DEFENSA[1]}.`);
           } else if (nota < NOTA_MINIMA_DEFENSA) {
-            // Una nota reprobada es válida: deja el trámite en estado
-            // terminal y el estudiante debe re-solicitar la modalidad.
             advertencias.push(
               `Con ${nota} puntos la defensa queda REPROBADO `
               + `(mínimo de aprobación: ${NOTA_MINIMA_DEFENSA}). El flujo de titulación `

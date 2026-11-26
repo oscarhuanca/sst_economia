@@ -2,7 +2,9 @@
   <ModuloTarjeta
     numero="3"
     titulo="Tribunal Revisor"
-    descripcion="Verifique la Nota de Suficiencia del tutor, la Resolución de designación del tribunal revisor y registre los datos de la Resolución del HCC."
+    :descripcion="esTesis
+      ? 'Verifique la Resolución de designación del tribunal revisor y registre los datos de la Resolución del HCC.'
+      : 'Verifique la Nota de Suficiencia del tutor, la Resolución de designación del tribunal revisor y registre los datos de la Resolución del HCC.'"
     icono="users"
     :completado="completado && !editando"
     :en-progreso="enProgreso || editando"
@@ -20,7 +22,7 @@
         </div>
       </dl>
 
-      <div class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
+      <div v-if="!esTesis" class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
             <p class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">
@@ -141,8 +143,9 @@
         <AppIcon name="pencil" :size="14" />
         Editando información y documentos ya registrados.
       </p>
-      <div class="grid sm:grid-cols-3 gap-3">
+      <div class="grid gap-3" :class="esTesis ? 'sm:grid-cols-2' : 'sm:grid-cols-3'">
         <button
+          v-if="!esTesis"
           type="button"
           class="flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition text-sm"
           :class="chipPaso1"
@@ -167,7 +170,7 @@
           type="button"
           class="flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition text-sm"
           :class="chipPaso2"
-          :disabled="!tutorEntregada"
+          :disabled="!esTesis && !tutorEntregada"
           @click="irPaso(2)"
         >
           <span
@@ -175,7 +178,7 @@
             :class="dotPaso2"
           >
             <AppIcon v-if="resolucionTribunalEntregada" name="check" :size="14" />
-            <template v-else>2</template>
+            <template v-else>{{ esTesis ? 1 : 2 }}</template>
           </span>
           <span class="min-w-0">
             <span class="block font-bold uppercase tracking-wide">Resolución de Designación de Tribunal Revisor</span>
@@ -199,12 +202,12 @@
             class="w-7 h-7 shrink-0 rounded-full flex items-center justify-center text-xs font-extrabold"
             :class="dotPaso3"
           >
-            3
+            {{ esTesis ? 2 : 3 }}
           </span>
           <span class="min-w-0">
-            <span class="block font-bold uppercase tracking-wide">Resolución y Tribunal Revisor</span>
+            <span class="block font-bold uppercase tracking-wide">{{ esTesis ? 'Notas de Suficiencia del Tribunal' : 'Resolución y Tribunal Revisor' }}</span>
             <span class="block text-xs text-slate-400">
-              {{ puedePaso3 ? 'Registre la resolución del HCC y valide las notas' : 'Se habilita al confirmar el paso 2' }}
+              {{ puedePaso3 ? (esTesis ? 'Registre las notas de suficiencia del tribunal' : 'Registre la resolución del HCC y valide las notas') : 'Se habilita al confirmar el paso 2' }}
             </span>
           </span>
         </button>
@@ -217,7 +220,7 @@
         </li>
       </ul>
 
-      <div v-if="paso === '1'" class="space-y-4">
+      <div v-if="paso === '1' && !esTesis" class="space-y-4">
         <div class="rounded-xl bg-white/5 border border-white/10 p-3.5 space-y-3">
           <div>
             <p class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Tutor asignado</p>
@@ -293,10 +296,34 @@
           </div>
 
           <div>
-            <label class="label" for="tribunal-resolucion-designacion">
-              Resolución de designación del tribunal revisor
-              <span class="text-slate-500 font-normal normal-case">(PDF opcional)</span>
-            </label>
+            <p class="text-sm font-bold uppercase text-white mb-3">1. Resolución de designación del Tribunal Revisor</p>
+            <div class="grid sm:grid-cols-2 gap-4">
+              <div>
+                <label class="label" for="tribunal-resolucion-designacion-nro">N.° Resolución HCC</label>
+                <input
+                  id="tribunal-resolucion-designacion-nro"
+                  v-model="form.numero_resolucion"
+                  type="text"
+                  class="input"
+                  placeholder="Ej: 250/2026"
+                  @input="normalizarNumeroResolucion"
+                  @blur="normalizarNumeroResolucion"
+                />
+              </div>
+              <div>
+                <label class="label" for="tribunal-resolucion-designacion-fecha">Fecha de Resolución</label>
+                <input
+                  id="tribunal-resolucion-designacion-fecha"
+                  v-model="form.fecha_resolucion"
+                  type="date"
+                  class="input"
+                  :max="hoyISO"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-3">
             <label
               :class="[
                 'flex items-center justify-between gap-3 px-4 py-3 rounded-xl border-2 border-dashed cursor-pointer transition',
@@ -323,9 +350,46 @@
                 Subir
               </span>
             </label>
-            <p class="text-[11px] text-slate-500 mt-1.5">
+            <p class="text-[11px] text-slate-500">
               Adjunte la resolución del HCC que designa al tribunal revisor, si ya cuenta con ella.
             </p>
+          </div>
+
+          <div>
+          <label class="label">Tribunal Revisor</label>
+            <div class="grid sm:grid-cols-3 gap-3">
+              <div v-for="miembro in form.tribunal" :key="miembro.rol">
+                <label class="text-[11px] uppercase tracking-wider font-bold text-orange-300 mb-1.5 block">
+                  {{ etiquetaRol(miembro.rol) }}
+                </label>
+                <select v-if="esTesis" v-model="miembro.nombre" class="input">
+                  <option value="" disabled>Seleccione un docente...</option>
+                  <option
+                    v-if="miembro.nombre && !docentes.some((d) => nombreCompletoDocente(d) === miembro.nombre)"
+                    :value="miembro.nombre"
+                  >
+                    {{ miembro.nombre }}
+                  </option>
+                  <option
+                    v-for="doc in docentes"
+                    :key="doc.id_docente ?? doc.id ?? nombreCompletoDocente(doc)"
+                    :value="nombreCompletoDocente(doc)"
+                  >
+                    {{ nombreCompletoDocente(doc) }}
+                  </option>
+                </select>
+                <input
+                  v-else
+                  v-model="miembro.nombre"
+                  type="text"
+                  class="input"
+                  :placeholder="`Nombre del ${etiquetaRol(miembro.rol)}...`"
+                />
+                <p v-if="esMismoQueTutor(miembro.nombre)" class="mt-1.5 text-xs text-red-400">
+                  Este docente ya es tutor en este proceso y no puede ser tribunal revisor.
+                </p>
+              </div>
+            </div>
           </div>
 
           <label class="flex items-start gap-2.5 rounded-xl border border-orange-500/30 bg-orange-500/10 px-3.5 py-3 cursor-pointer">
@@ -343,14 +407,14 @@
         <div class="flex justify-end">
           <button type="submit" class="btn-warm px-6">
             <AppIcon name="check" :size="18" />
-            <span class="uppercase tracking-wide">Continuar a resolución y tribunal</span>
+            <span class="uppercase tracking-wide">Guardar y continuar</span>
           </button>
         </div>
       </div>
 
       <div v-else class="grid sm:grid-cols-2 gap-4">
-        <div>
-          <label class="label" for="tribunal-resolucion">Número de Resolución del HCC</label>
+        <div v-if="!esTesis">
+          <label class="label" for="tribunal-resolucion">Nǧmero de Resolución del HCC</label>
           <input
             id="tribunal-resolucion"
             v-model="form.numero_resolucion"
@@ -361,13 +425,13 @@
             @blur="normalizarNumeroResolucion"
           />
         </div>
-        <div>
+        <div v-if="!esTesis">
           <label class="label" for="tribunal-fecha">Fecha de Resolución</label>
           <input id="tribunal-fecha" v-model="form.fecha_resolucion" type="date" class="input" :max="hoyISO" />
         </div>
 
         <div class="sm:col-span-2">
-          <label class="label">Nombres del Tribunal Revisor</label>
+          <label class="label">Notas de Suficiencia</label>
           <div class="space-y-2.5">
             <div
               v-for="miembro in form.tribunal"
@@ -531,9 +595,9 @@ function normalizarNumeroResolucion() {
   form.numero_resolucion = prefijarNumeroResolucion(form.numero_resolucion);
 }
 
-const paso = ref('1');
+const paso = ref(esTesis.value ? '2' : '1');
 const errores = ref([]);
-const tutorEntregada = ref(confirmado(props.datos?.nota_suficiencia_tutor_entregada));
+const tutorEntregada = ref(esTesis.value ? true : confirmado(props.datos?.nota_suficiencia_tutor_entregada));
 const resolucionTribunalEntregada = ref(confirmado(props.datos?.resolucion_tribunal_entregada));
 const archivoTutor = ref(null);
 const archivoResolucionTribunal = ref(null);
@@ -552,6 +616,21 @@ const nombreTutor = computed(() => {
     .join(' ');
 });
 
+function normalizarNombre(valor) {
+  return String(valor || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function esMismoQueTutor(nombre) {
+  if (!props.tutor) return false;
+  const n = normalizarNombre(nombre);
+  return Boolean(n) && n === normalizarNombre(nombreTutor.value);
+}
+
 const DOT_ACTIVO = 'bg-orange text-white';
 const DOT_PENDIENTE = 'bg-white/10 text-slate-400';
 
@@ -568,7 +647,7 @@ const dotPaso1 = computed(() => {
   return paso.value === '1' ? DOT_ACTIVO : DOT_PENDIENTE;
 });
 
-const puedePaso3 = computed(() => tutorEntregada.value && resolucionTribunalEntregada.value);
+const puedePaso3 = computed(() => (esTesis.value || tutorEntregada.value) && resolucionTribunalEntregada.value);
 
 const chipPaso2 = computed(() => {
   if (!tutorEntregada.value) return 'border-white/10 bg-white/5 opacity-50';
@@ -589,7 +668,7 @@ const chipPaso3 = computed(() => {
 const dotPaso3 = computed(() => (paso.value === '3' ? DOT_ACTIVO : DOT_PENDIENTE));
 
 function irPaso(n) {
-  if (n >= 2 && !tutorEntregada.value) {
+  if (n >= 2 && !esTesis.value && !tutorEntregada.value) {
     errores.value = ['Confirme que el tutor entregó la Nota de Suficiencia para continuar.'];
     return;
   }
@@ -602,7 +681,7 @@ function irPaso(n) {
 }
 
 watch(tutorEntregada, (entregada) => {
-  if (!entregada && paso.value !== '1') {
+  if (!esTesis.value && !entregada && paso.value !== '1') {
     paso.value = '1';
   }
 });
@@ -625,7 +704,7 @@ watch(
         form.tribunal[idx].nota_suficiencia = previo?.nota_suficiencia || null;
         form.tribunal[idx].nota_suficiencia_entregada = confirmado(previo?.nota_suficiencia_entregada);
       });
-      tutorEntregada.value = confirmado(props.datos.nota_suficiencia_tutor_entregada);
+      tutorEntregada.value = esTesis.value ? true : confirmado(props.datos.nota_suficiencia_tutor_entregada);
       resolucionTribunalEntregada.value = confirmado(props.datos.resolucion_tribunal_entregada);
       paso.value = '3';
     }
@@ -672,6 +751,10 @@ function handleArchivoMiembro(rol, event) {
     return;
   }
   archivoMiembro[rol] = file;
+  if (file) {
+    const miembro = form.tribunal.find((t) => t.rol === rol);
+    if (miembro) miembro.nota_suficiencia_entregada = true;
+  }
   errores.value = [];
   event.target.value = '';
 }
@@ -680,7 +763,7 @@ function obtenerDatos() {
   const datos = {
     numero_resolucion: prefijarNumeroResolucion(form.numero_resolucion),
     fecha_resolucion: form.fecha_resolucion,
-    nota_suficiencia_tutor_entregada: tutorEntregada.value,
+    nota_suficiencia_tutor_entregada: esTesis.value ? true : tutorEntregada.value,
     resolucion_tribunal_entregada: resolucionTribunalEntregada.value,
     tribunal: form.tribunal.map((t) => ({
       rol: t.rol,
@@ -723,7 +806,7 @@ function obtenerArchivos() {
 }
 
 function enviar() {
-  if (paso.value === '1') {
+  if (paso.value === '1' && !esTesis.value) {
     errores.value = [];
     if (!tutorEntregada.value) {
       errores.value = ['Confirme que el tutor entregó la Nota de Suficiencia para continuar.'];
@@ -735,16 +818,31 @@ function enviar() {
 
   if (paso.value === '2') {
     errores.value = [];
-    if (!resolucionTribunalEntregada.value) {
-      errores.value = ['Confirme que se cuenta con la Resolución de designación del tribunal revisor para continuar.'];
+    if (!form.numero_resolucion.trim()) {
+      errores.value = ['Ingrese el N.° de Resolución del HCC.'];
       return;
     }
+    if (!form.fecha_resolucion) {
+      errores.value = ['Seleccione la fecha de la Resolución.'];
+      return;
+    }
+    const faltantes = ROLES_TRIBUNAL.filter((rol) => !form.tribunal.find((t) => t.rol === rol)?.nombre?.trim());
+    if (faltantes.length) {
+      errores.value = ['Seleccione los nombres del Tribunal 1, Tribunal 2 y Tribunal 3.'];
+      return;
+    }
+    const conflictoTutor = form.tribunal.find((t) => esMismoQueTutor(t.nombre));
+    if (conflictoTutor) {
+      errores.value = ['El tutor del proceso no puede ser seleccionado como tribunal revisor.'];
+      return;
+    }
+    resolucionTribunalEntregada.value = true;
     paso.value = '3';
     return;
   }
 
   const datos = obtenerDatos();
-  const res = validarModulo('tribunal_revisor', datos);
+  const res = validarModulo('tribunal_revisor', datos, props.config?.nombre);
   if (!res.ok) {
     errores.value = res.errores;
     return;
