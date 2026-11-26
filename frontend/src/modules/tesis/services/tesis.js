@@ -30,9 +30,7 @@ export const tesisService = {
         return http.post(`/tesis/${id}/solicitar-fecha-defensa`, { fecha_sugerida: fechaSugerida || null });
     },
     /** Sube el trabajo de investigación (publicación) tras aprobar la defensa. */
-    subirPublicacion(id, formData) {
-        return http.post(`/tesis/${id}/publicacion`, formData);
-    },
+
     /** Configuración del módulo (plazo de presentación, días de corrección). */
     config() {
         return http.get('/tesis/config');

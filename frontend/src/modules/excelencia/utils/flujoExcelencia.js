@@ -56,10 +56,10 @@ export const MODULOS_FLUJO_EXCELENCIA = [
   {
     id: 'acta_lectura',
     label: 'Generación y lectura del acta',
-    estado: 'acta_lectura_registrada',
+    estado: 'titulado',
     pct: 100,
     icon: 'file-text',
-    badge: 'Acta Generada y Leída',
+    badge: 'Titulado',
   },
   {
     id: 'reporte',
@@ -67,7 +67,7 @@ export const MODULOS_FLUJO_EXCELENCIA = [
     estado: 'titulado',
     pct: 100,
     icon: 'file-text',
-    badge: 'Reporte Generado',
+    badge: 'Reporte',
   },
 ];
 
@@ -77,11 +77,10 @@ export const ORDEN_ESTADOS = [
   'tribunal_designado',
   'informe_tribunal_registrado',
   'resolucion_hcc_registrada',
-  'acta_lectura_registrada',
   'titulado',
 ];
 
-const PORCENTAJES = [20, 36, 52, 68, 100, 100];
+const PORCENTAJES = [20, 36, 52, 68, 100];
 
 /** Rango y mínimo de nota (espejo de `config/excelencia.php`, solo legado). */
 export const RANGO_NOTA = [0, 100];
@@ -165,21 +164,31 @@ export function esFlujoExcelencia(tramite) {
  * @returns {Array<{id,label,estado,pct,icon,badge,completado,enProgreso}>}
  */
 export function modulosExcelencia(tramite) {
-  const indice = ORDEN_ESTADOS.indexOf(tramite?.estado_actual);
+  const actual = tramite?.estado_actual;
+  const estadoNorm = actual === 'acta_lectura_registrada' ? 'titulado' : actual;
+  const indice = ORDEN_ESTADOS.indexOf(estadoNorm);
+  const actaHecha = Boolean(tramite?.hitos?.modulos?.[MODULO_ACTA]?.verificado) || estadoNorm === 'titulado';
 
-  return MODULOS_FLUJO_EXCELENCIA.map((m, i) => ({
-    ...m,
-    completado: indice >= i,
-    enProgreso: indice >= 0 && indice === i - 1,
-  }));
+  return MODULOS_FLUJO_EXCELENCIA.map((m, i) => {
+    if (m.id === MODULO_ACTA) {
+      return { ...m, completado: actaHecha, enProgreso: actual === 'resolucion_hcc_registrada' && !actaHecha };
+    }
+    if (m.id === MODULO_REPORTE) {
+      return { ...m, completado: actaHecha, enProgreso: false };
+    }
+    return {
+      ...m,
+      completado: indice >= i,
+      enProgreso: indice >= 0 && indice === i - 1,
+    };
+  });
 }
 
 /** Porcentaje de avance (0-100) según el estado del trámite. */
 export function pctExcelencia(tramite) {
-  const indice = ORDEN_ESTADOS.indexOf(tramite?.estado_actual);
-
+  const actual = tramite?.estado_actual === 'acta_lectura_registrada' ? 'titulado' : tramite?.estado_actual;
+  const indice = ORDEN_ESTADOS.indexOf(actual);
   if (indice === -1) return 0;
-
   return PORCENTAJES[indice] ?? 0;
 }
 
@@ -187,9 +196,8 @@ export function pctExcelencia(tramite) {
  * Índice del primer módulo pendiente, o -1 si el flujo ya no admite más avances.
  */
 export function proximoModuloPendiente(tramite) {
-  if (tramite?.estado_actual === 'rechazado' || tramite?.estado_actual === 'titulado') return -1;
-
-  return modulosExcelencia(tramite).findIndex((m) => !m.completado);
+  if (tramite?.estado_actual === 'rechazado') return -1;
+  return modulosExcelencia(tramite).findIndex((m) => !m.completado && m.id !== MODULO_REPORTE);
 }
 
 /** Datos guardados de un módulo (desde `hitos.modulos`). */

@@ -66,12 +66,12 @@ class TramiteService extends BasePaginadoService
     ];
 
     /**
-     * Módulos del flujo de titulación y el estado objetivo al que avanza cada
-     * uno al aprobarse (espejo del frontend).
+     * Catálogo común de módulos del flujo de titulación y el estado objetivo de
+     * cada uno al aprobarse (espejo del frontend).
      *
      * El primer módulo (el del perfil) cambia de identificador según la
      * modalidad (`perfil_tesis` / `perfil_proyecto`), por eso el mapa se arma
-     * en {@see self::modulosFlujoDe()} a partir de este catálogo común y del
+     * en {@see self::modulosFlujoDe()} a partir de este catálogo y del
      * identificador registrado para cada modalidad.
      *
      * @var array<string, string>
@@ -102,6 +102,9 @@ class TramiteService extends BasePaginadoService
 
     /** Documento opcional que designa al tribunal revisor del trabajo. */
     private const DOC_RESOLUCION_TRIBUNAL = 'resolucion_designacion_tribunal';
+
+    /** Documento opcional con la Resolución HCC que aprueba la defensa. */
+    private const DOC_RESOLUCION_DEFENSA = 'resolucion_aprobacion_defensa';
 
     /**
      * Porcentaje de avance por estado (incluye estados heredados) para saber si
@@ -511,10 +514,10 @@ class TramiteService extends BasePaginadoService
             ]);
         }
 
-        // La defensa se registra en TRES pasos: el paso 1 confirma la entrega
-        // de los 8 empastados y el CD; el paso 2 guarda la Resolución de
-        // Aprobación Final y la fecha; el paso 3 cierra el módulo con la nota
-        // final. Sin `paso` se interpreta como guardado completo.
+        // La defensa se registra en TRES pasos: el paso 1 guarda la Resolución
+        // HCC de aprobación; el paso 2 confirma la entrega de los 8 empastados
+        // y el CD; el paso 3 guarda la fecha y la nota final. Sin `paso` se
+        // interpreta como guardado completo.
         $paso = (int) ($datos['paso'] ?? 3);
 
         // Módulos con decisión: el perfil se aprueba o se rechaza.
@@ -665,6 +668,15 @@ class TramiteService extends BasePaginadoService
             );
         }
 
+        if ($modulo === 'defensa' && isset($adjuntos['resolucion_defensa'])) {
+            $datos['resolucion_defensa'] = $this->guardarMetadatosDocumento(
+                $tramite,
+                $actor,
+                $adjuntos['resolucion_defensa'],
+                self::DOC_RESOLUCION_DEFENSA,
+            );
+        }
+
         if ($modulo !== 'tribunal_revisor') {
             return $datos;
         }
@@ -773,15 +785,23 @@ class TramiteService extends BasePaginadoService
      * que avanza cada uno.
      *
      * El identificador del módulo del perfil depende de la modalidad
-     * (`perfil_tesis` / `perfil_proyecto`); el resto es común.
+     * (`perfil_tesis` / `perfil_proyecto`). En Tesis de Grado la defensa aprueba
+     * y titula en el mismo paso; en Trabajo Dirigido se mantienen publicación y
+     * reporte.
      *
      * @return array<string, string>
      */
     private function modulosFlujoDe(string $modalidad): array
     {
         $perfil = FlujoTitulacionModalidad::perfilDe($modalidad);
+        $modulos = self::MODULOS_FLUJO_TITULACION;
 
-        return array_merge([$perfil => 'pendiente_concejo_universitario'], self::MODULOS_FLUJO_TITULACION);
+        if ($modalidad === FlujoTitulacionModalidad::MODALIDAD_TESIS) {
+            $modulos['defensa'] = 'titulado';
+            unset($modulos['publicacion'], $modulos['reporte']);
+        }
+
+        return array_merge([$perfil => 'pendiente_concejo_universitario'], $modulos);
     }
 
     /**
@@ -971,16 +991,19 @@ class TramiteService extends BasePaginadoService
                 break;
 
             case 'defensa':
-                if (empty($datos['empastados_cd_entregados'])) {
+                if (! $val($datos['numero_resolucion'] ?? null)) {
+                    $errores[] = 'Ingrese el número de Resolución HCC de aprobación.';
+                }
+                if (! $val($datos['fecha_resolucion'] ?? null)) {
+                    $errores[] = 'Seleccione la fecha de la Resolución HCC.';
+                }
+                if ($paso >= 2 && empty($datos['empastados_cd_entregados'])) {
                     $errores[] = 'Confirme que el estudiante presentó los 8 empastados y el CD de su tesis de grado.';
                 }
-                if ($paso >= 2 && ! $val($datos['numero_resolucion'] ?? null)) {
-                    $errores[] = 'Ingrese el número de Resolución de Aprobación Final.';
-                }
-                if ($paso >= 2 && ! $val($datos['fecha_defensa'] ?? null)) {
-                    $errores[] = 'Seleccione la fecha de la defensa.';
-                }
                 if ($paso >= 3) {
+                    if (! $val($datos['fecha_defensa'] ?? null)) {
+                        $errores[] = 'Seleccione la fecha de la defensa.';
+                    }
                     $nota = $datos['nota_final'] ?? null;
                     if ($nota === null || $nota === '') {
                         $errores[] = 'Ingrese la nota final de la defensa.';

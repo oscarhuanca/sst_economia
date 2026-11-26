@@ -332,6 +332,26 @@ export const useKardexStore = defineStore('kardex', {
             }
         },
         /**
+         * Publica el documento final de tesis (PDF) desde el panel de KARDEX.
+         */
+        async publicarDocumentoFinalTesis(archivo, observaciones = '') {
+            this.cargando = true;
+            this.errorMessage = null;
+            try {
+                if (!this.tramite) return null;
+                const { data } = await kardexService.publicarDocumentoFinalTesis(this.tramite.id_tramite, archivo, observaciones);
+                const tramite = data?.tramite || data;
+                if (tramite?.id_tramite) this.tramite = tramite;
+                return this.tramite;
+            } catch (err) {
+                this.errorMessage = mensajeError(err, 'No se pudo publicar el documento final.');
+                return null;
+            } finally {
+                this.cargando = false;
+            }
+        },
+
+        /**
          * Guarda un módulo del flujo de titulación: registra los datos del
          * formulario en `hitos.modulos`, avanza el estado del trámite al estado
          * objetivo del módulo y refresca el trámite del postulante. En modo
@@ -353,6 +373,10 @@ export const useKardexStore = defineStore('kardex', {
 
                     if (archivos.resolucion_tema) {
                         datosMock.resolucion_tema = metadatos(archivos.resolucion_tema);
+                    }
+
+                    if (moduloId === 'defensa' && archivos.resolucion_defensa) {
+                        datosMock.resolucion_defensa = metadatos(archivos.resolucion_defensa);
                     }
 
                     if (archivos.resolucion_tutor) {

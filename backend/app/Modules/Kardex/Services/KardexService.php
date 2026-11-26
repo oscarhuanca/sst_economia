@@ -6,12 +6,15 @@ use App\Models\Estudiante;
 use App\Models\Modalidad;
 use App\Models\Tramite;
 use App\Models\User;
+use App\Modules\Tramites\Services\FlujoTitulacionModalidad;
 use App\Modules\Tramites\Services\TramiteService;
 use App\Modules\Tramites\Services\TramiteStateService;
 use App\Support\CredencialesEstudiante;
+use App\Support\DocumentoAdjuntoService;
 use App\Support\Roles;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -46,6 +49,7 @@ class KardexService
 
     public function __construct(
         private readonly TramiteService $tramites,
+        private readonly DocumentoAdjuntoService $documentos,
     ) {}
 
     /**
@@ -447,6 +451,46 @@ class KardexService
     /**
      * Genera reporte estadístico filtrable por modalidad, mes, año o rango de fechas.
      */
+    /**
+     * Publica el documento final de tesis (PDF) desde KARDEX.
+     *
+     * @throws ValidationException
+     */
+    public function publicarDocumentoFinalTesis(int $idTramite, User $actor, UploadedFile $archivo, ?string $observaciones = null): array
+    {
+        $tramite = Tramite::with('modalidad', 'estudiante.user', 'documentos', 'estados.responsable', 'tutor')->findOrFail($idTramite);
+
+        if ($tramite->modalidad?->nombre !== FlujoTitulacionModalidad::MODALIDAD_TESIS) {
+            throw ValidationException::withMessages([
+                'tramite' => ['Solo se puede publicar el documento final en trámites de Tesis de Grado.'],
+            ]);
+        }
+
+        $doc = $this->documentos->reemplazar(
+            $tramite->id_tramite,
+            $actor->id_usuario,
+            $archivo,
+            'trabajo_publicacion',
+        );
+
+        $hitos = $tramite->hitos ?? [];
+        $modulos = $hitos['modulos'] ?? [];
+        $modulos['publicacion'] = array_replace($modulos['publicacion'] ?? [], [
+            'archivo' => [
+                'nombre' => $doc->nombre_archivo,
+                'ruta' => $doc->ruta_archivo,
+                'tamanio_kb' => $doc->tamanio_kb,
+            ],
+            'fecha_publicacion' => Carbon::now()->toDateString(),
+            'observaciones' => $observaciones,
+            'publicado_por_kardex' => true,
+        ]);
+        $hitos['modulos'] = $modulos;
+        $tramite->update(['hitos' => $hitos]);
+
+        return $this->tramites->formatear($tramite->refresh()->load('modalidad', 'estudiante.user', 'documentos', 'estados.responsable', 'tutor'));
+    }
+
     public function reportes(array $filtros = []): array
     {
         $query = Tramite::query()

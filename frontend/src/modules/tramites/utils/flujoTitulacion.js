@@ -176,9 +176,14 @@ export function modulosDe(config) {
     },
     { id: 'aprobacion_tema', label: 'Tema y Tutor', estado: 'tema_aprobado', pct: 40, icon: 'book', badge: 'Tema y Tutor Aprobados' },
     { id: 'tribunal_revisor', label: 'Tribunal Revisor', estado: 'tribunal_asignado', pct: 60, icon: 'users', badge: 'Tribunal Asignado' },
-    { id: 'defensa', label: 'Defensa', estado: 'defensa_aprobada', pct: 75, icon: 'award', badge: 'Defensa Aprobada' },
-    { id: 'publicacion', label: 'Publicación', estado: 'publicado', pct: 90, icon: 'globe', badge: 'Publicado' },
-    { id: 'reporte', label: 'Reporte', estado: 'titulado', pct: 100, icon: 'file-text', badge: 'Titulado' },
+    {
+      id: 'defensa',
+      label: 'Aprobación y Defensa',
+      estado: 'titulado',
+      pct: 100,
+      icon: 'award',
+      badge: 'Titulado',
+    },
   ];
 }
 
@@ -440,70 +445,68 @@ function camposDeModulo(config, moduloId, datos, tramite) {
       ]);
 
     case 'tribunal_revisor':
-      if (modalidad !== 'Tesis de Grado' && !datos.nota_suficiencia_tutor_entregada) {
-        errores.push('Confirme que el tutor entregó la Nota de Suficiencia.');
-      }
-      if (!datos.resolucion_tribunal_entregada) {
-        errores.push('Confirme que se cuenta con la Resolución de designación del tribunal revisor.');
-      }
-      if (!val(datos.numero_resolucion)) errores.push('Ingrese el número de Resolución del HCC.');
-      if (!val(datos.fecha_resolucion)) errores.push('Seleccione la fecha de la Resolución.');
-      if (!Array.isArray(datos.tribunal) || datos.tribunal.length < ROLES_TRIBUNAL.length) {
-        errores.push('Complete los miembros del tribunal revisor (Tribunal 1, Tribunal 2 y Tribunal 3).');
-      } else {
-        ROLES_TRIBUNAL.forEach((rol) => {
-          const miembro = datos.tribunal.find((t) => t.rol === rol);
-          const etiquetaRol = ETIQUETAS_ROL_TRIBUNAL[rol] || rol;
-          if (!miembro || !val(miembro.nombre)) {
-            errores.push(`Complete el nombre del ${etiquetaRol}.`);
-          }
-          if (!miembro?.nota_suficiencia_entregada) {
-            errores.push(`Confirme que el ${etiquetaRol} entregó su Nota de Suficiencia.`);
-          }
-        });
-      }
-      break;
-    case 'defensa': {
-      if (!datos.empastados_cd_entregados) {
-        errores.push('Confirme que el estudiante presentó los 8 empastados y el CD de su tesis de grado.');
-      }
-      const paso = Number(datos.paso ?? 3);
-      if (paso >= 2) {
-        if (!val(datos.numero_resolucion)) errores.push('Ingrese el número de Resolución de Aprobación Final.');
-        if (!val(datos.fecha_defensa)) errores.push('Seleccione la fecha de la defensa.');
-      }
-      if (paso >= 3) {
-        if (datos.nota_final === null || datos.nota_final === undefined || datos.nota_final === '') {
-          errores.push('Ingrese la nota final de la defensa.');
-        } else {
-          const nota = Number(datos.nota_final);
-          if (Number.isNaN(nota) || nota < RANGO_NOTA_DEFENSA[0] || nota > RANGO_NOTA_DEFENSA[1]) {
-            errores.push(`La nota debe estar entre ${RANGO_NOTA_DEFENSA[0]} y ${RANGO_NOTA_DEFENSA[1]}.`);
-          } else if (nota < NOTA_MINIMA_DEFENSA) {
-            // Una nota reprobada es válida: deja el trámite en estado
-            // terminal y el estudiante debe re-solicitar la modalidad.
-            advertencias.push(
-              `Con ${nota} puntos la defensa queda REPROBADO `
-              + `(mínimo de aprobación: ${NOTA_MINIMA_DEFENSA}). El flujo de titulación `
-              + 'termina aquí y el estudiante deberá volver a solicitar la modalidad de graduación.',
-            );
-          }
-        }
-      }
-      break;
-    }
-    case 'reporte':
-      break;
-    case 'publicacion':
-      if (!val(datos.archivo?.nombre)) {
-        errores.push('Debe existir un documento de publicación subido por el estudiante.');
-      }
-      break;
-    default:
-      errores.push('Módulo no reconocido.');
-  }
+      return filas([
+        ...(config.nombre !== 'Tesis de Grado'
+          ? [{
+            etiqueta: 'Nota de Suficiencia del tutor',
+            valor: datos.nota_suficiencia_tutor?.nombre
+              || (datos.nota_suficiencia_tutor_entregada ? 'Entregada' : null),
+            ruta: datos.nota_suficiencia_tutor?.ruta || null,
+          }]
+          : []),
+        {
+          etiqueta: 'Resolución de designación del tribunal revisor',
+          valor: datos.resolucion_tribunal?.nombre
+            || (datos.resolucion_tribunal_entregada ? 'Confirmada' : null),
+          ruta: datos.resolucion_tribunal?.ruta || null,
+        },
+        { etiqueta: 'N.º de Resolución del HCC', valor: datos.numero_resolucion },
+        { etiqueta: 'Fecha de la resolución', valor: fechaLegible(datos.fecha_resolucion) },
+        ...ROLES_TRIBUNAL.map((rol) => {
+          const miembro = (datos.tribunal || []).find((t) => t.rol === rol);
+          const nota = miembro?.nota_suficiencia?.nombre
+            || (miembro?.nota_suficiencia_entregada ? 'Entregada' : null);
+          return {
+            etiqueta: ETIQUETAS_ROL_TRIBUNAL[rol] || rol,
+            valor: [miembro?.nombre, nota].filter(Boolean).join(' · ') || null,
+            ruta: miembro?.nota_suficiencia?.ruta || null,
+          };
+        }),
+      ]);
 
-  return { ok: errores.length === 0, errores, advertencias };
+    case 'defensa':
+      return filas([
+        { etiqueta: 'Resolución HCC de aprobación', valor: datos.numero_resolucion },
+        { etiqueta: 'Fecha de la resolución', valor: fechaLegible(datos.fecha_resolucion) },
+        {
+          etiqueta: 'PDF de la resolución',
+          valor: datos.resolucion_defensa?.nombre,
+          ruta: datos.resolucion_defensa?.ruta || null,
+        },
+        {
+          etiqueta: 'Empastados y CD',
+          valor: datos.empastados_cd_entregados ? 'Entregados' : 'Sin confirmar',
+        },
+        { etiqueta: 'Fecha de defensa', valor: fechaLegible(datos.fecha_defensa) },
+        { etiqueta: 'Nota final', valor: datos.nota_final },
+      ]);
+
+    case 'reporte':
+      return [];
+    case 'publicacion':
+      return filas([
+        { etiqueta: 'Fecha de publicación', valor: fechaLegible(datos?.fecha_publicacion) },
+        {
+          etiqueta: 'Documento final de tesis',
+          valor: datos?.archivo?.nombre || (tramite?.estado_actual === 'titulado' ? 'Pendiente de carga por Kardex' : null),
+          ruta: datos?.archivo?.ruta || null,
+        },
+        { etiqueta: 'Observaciones', valor: datos?.observaciones },
+      ]);
+
+    default:
+      return [];
+  }
 }
 
 const BADGE_PERFIL_POR_ESTADO = {
@@ -527,8 +530,7 @@ export function actualizacionesKardex(tramite) {
   if (!config) return [];
 
   const modulos = tramite?.hitos?.modulos || {};
-
-  return modulosDe(config).map((m) => {
+  const lista = modulosDe(config).map((m) => {
     const datos = modulos[m.id] || null;
     const esPerfil = m.id === config.moduloPerfil;
     const estadoModulo = esPerfil ? estadoPerfilDe(tramite) : m.estado;
@@ -542,7 +544,26 @@ export function actualizacionesKardex(tramite) {
       fecha: fecha ? String(fecha).slice(0, 10) : null,
       campos: camposDeModulo(config, m.id, datos, tramite),
     };
-  }).filter((a) => a.campos.length > 0 || a.fecha !== null);
+  });
+
+  const datosPub = modulos.publicacion || null;
+  const archivo = datosPub?.archivo;
+  if (datosPub || tramite?.estado_actual === 'titulado') {
+    lista.push({
+      id: 'publicacion',
+      label: 'Publicación del documento final',
+      estado: archivo ? 'publicado' : 'titulado',
+      badge: archivo ? 'Documento publicado' : 'Pendiente de publicación',
+      icon: 'upload-cloud',
+      fecha: datosPub?.fecha_publicacion ? String(datosPub.fecha_publicacion).slice(0, 10) : null,
+      campos: camposDeModulo(config, 'publicacion', datosPub, tramite),
+    });
+  }
+
+  return lista.map((a) => ({
+    ...a,
+    completado: a.campos.length > 0 || a.fecha !== null,
+  }));
 }
 
 export function validarModulo(moduloId, datos = {}, modalidad = null) {
@@ -623,15 +644,18 @@ export function validarModulo(moduloId, datos = {}, modalidad = null) {
       }
       break;
     case 'defensa': {
-      if (!datos.empastados_cd_entregados) {
+      const paso = Number(datos.paso ?? 3);
+      if (!val(datos.numero_resolucion)) {
+        errores.push('Ingrese el número de Resolución HCC de aprobación.');
+      }
+      if (!val(datos.fecha_resolucion)) {
+        errores.push('Seleccione la fecha de la Resolución HCC.');
+      }
+      if (paso >= 2 && !datos.empastados_cd_entregados) {
         errores.push('Confirme que el estudiante presentó los 8 empastados y el CD de su tesis de grado.');
       }
-      const paso = Number(datos.paso ?? 3);
-      if (paso >= 2) {
-        if (!val(datos.numero_resolucion)) errores.push('Ingrese el número de Resolución de Aprobación Final.');
-        if (!val(datos.fecha_defensa)) errores.push('Seleccione la fecha de la defensa.');
-      }
       if (paso >= 3) {
+        if (!val(datos.fecha_defensa)) errores.push('Seleccione la fecha de la defensa.');
         if (datos.nota_final === null || datos.nota_final === undefined || datos.nota_final === '') {
           errores.push('Ingrese la nota final de la defensa.');
         } else {

@@ -130,6 +130,17 @@
             @guardado="sincronizarEstado"
             @consultar-coincidencia="consultarCoincidencia"
           />
+          <div class="card p-5">
+            <ModuloReporte
+              :solo-boton="true"
+              :tramite="kardexStore.tramite"
+              :docentes="docentes"
+            />
+          </div>
+          <PublicacionDocumentoFinalTesis
+            v-if="esKardex"
+            :tramite="kardexStore.tramite"
+          />
         </template>
 
         <template v-else>
@@ -316,14 +327,20 @@ import { TimelineTramite, EstadoBadge, formatoEstado, ESTADOS_TERMINALES, useTra
 import { DESCRIPCION_ESTADO, countdownDe, tituloPerfilTesis } from '@/modules/tesis';
 import { DOCENTES_MOCK } from '@/modules/kardex/mock/data';
 import { esFlujoTitulacion as esFlujoDeModulos } from '@/modules/tramites/utils/flujoTitulacion';
+import { useAuthStore } from '@/modules/auth/stores/auth';
+import { perteneceRol, ROLES_GESTION } from '@/core/roles';
 import { useToastStore } from '@/core/stores/toast';
 import AppIcon from '@/ui/AppIcon.vue';
 import EmptyState from '@/ui/EmptyState.vue';
 import FlujoTitulacion from '../components/flujo/FlujoTitulacion.vue';
+import ModuloReporte from '../components/flujo/ModuloReporte.vue';
+import PublicacionDocumentoFinalTesis from '../components/PublicacionDocumentoFinalTesis.vue';
 
 const kardexStore = useKardexStore();
+const authStore = useAuthStore();
 const toastStore = useToastStore();
 const tramitesStore = useTramitesStore();
+const esKardex = computed(() => perteneceRol(authStore.user?.rol, ROLES_GESTION));
 const route = useRoute();
 
 const identificador = ref('');

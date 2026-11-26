@@ -6,6 +6,7 @@ use App\Modules\Kardex\Http\Requests\AsignarModalidadRequest;
 use App\Modules\Kardex\Http\Requests\BuscarPostulanteRequest;
 use App\Modules\Kardex\Http\Requests\ConsultarPostulanteRequest;
 use App\Modules\Kardex\Http\Requests\GenerarCredencialesRequest;
+use App\Modules\Kardex\Http\Requests\PublicarDocumentoFinalTesisRequest;
 use App\Modules\Kardex\Http\Requests\VerificarTituloTesisRequest;
 use App\Modules\Kardex\Services\KardexService;
 use App\Modules\Kardex\Services\VerificacionTituloService;
@@ -101,6 +102,21 @@ class KardexController extends Controller
                 isset($validated['excluir_estudiante']) ? (int) $validated['excluir_estudiante'] : null,
             ),
         ]);
+    }
+
+    /**
+     * Publica el documento final de tesis (PDF) desde KARDEX.
+     */
+    public function publicarDocumentoFinal(PublicarDocumentoFinalTesisRequest $request, int $id): JsonResponse
+    {
+        $tramite = $this->kardex->publicarDocumentoFinalTesis(
+            $id,
+            $request->user(),
+            $request->file('documento_publicacion'),
+            $request->validated('observaciones')
+        );
+
+        return response()->json(['ok' => true, 'tramite' => $tramite], 201);
     }
 
     /**

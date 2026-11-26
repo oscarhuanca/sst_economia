@@ -1,5 +1,14 @@
 <template>
+  <div v-if="soloBoton" class="flex justify-end">
+    <button class="btn-warm px-6" :disabled="cargando || generando" @click="exportarReporte">
+      <AppIcon v-if="cargando || generando" name="loader" :size="18" class="animate-spin" />
+      <AppIcon v-else name="download" :size="18" />
+      <span class="uppercase tracking-wide">Generar reporte</span>
+    </button>
+  </div>
+
   <ModuloTarjeta
+    v-else
     numero="6"
     titulo="Reporte"
     descripcion="Genere el reporte consolidado del trámite de titulación."
@@ -70,7 +79,7 @@
           <button class="btn-warm px-6" :disabled="cargando || generando" @click="exportarReporte">
             <AppIcon v-if="cargando || generando" name="loader" :size="18" class="animate-spin" />
             <AppIcon v-else name="download" :size="18" />
-            <span class="uppercase tracking-wide">Generar Reporte PDF</span>
+            <span class="uppercase tracking-wide">Generar reporte</span>
           </button>
         </div>
       </div>
@@ -219,6 +228,7 @@ const props = defineProps({
   cargando: { type: Boolean, default: false },
   simulado: { type: Boolean, default: false },
   areaFirmante: { type: String, default: null },
+  soloBoton: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['guardar']);
@@ -357,18 +367,22 @@ const etapasProceso = computed(() => {
   });
 
   const tribunal = tribunalDatos.value.tribunal || [];
+  const tribunalCompletado = tribunal.length
+    || avance.value >= 60
+    || ['tribunal_asignado', 'defensa_aprobada', 'publicado', 'reporte_generado', 'titulado'].includes(props.tramite?.estado_actual);
   etapas.push({
     etapa: 'Conformación del tribunal revisor',
     subetapa: '3. Tribunal Revisor',
-    estado: tribunal.length ? 'COMPLETADO' : 'PENDIENTE',
+    estado: tribunalCompletado ? 'COMPLETADO' : 'PENDIENTE',
     fecha: fechaLegible(tribunalDatos.value.fecha_asignacion) || '—',
     detalle: tribunal.length ? tribunal.map((m) => `${m.rol}: ${m.nombre}`).join(' · ') : '—',
   });
 
+  const defensaRealizada = defensa.value.fecha_defensa || defensa.value.nota_final != null || defensa.value.numero_resolucion;
   etapas.push({
     etapa: `Defensa de ${tituloGenerico.value}`,
-    subetapa: '4. Defensa',
-    estado: defensa.value.completado ? 'COMPLETADO' : 'PENDIENTE',
+    subetapa: '4. Aprobación y Defensa',
+    estado: defensaRealizada ? 'COMPLETADO' : 'PENDIENTE',
     fecha: fechaLegible(defensa.value.fecha_defensa) || '—',
     detalle:
       [
@@ -382,16 +396,27 @@ const etapasProceso = computed(() => {
 
   etapas.push({
     etapa: 'Resultado de la defensa',
-    subetapa: '4. Defensa',
+    subetapa: '4. Aprobación y Defensa',
     estado: defensa.value.nota_final != null ? 'COMPLETADO' : 'PENDIENTE',
     fecha: fechaLegible(defensa.value.fecha_defensa) || '—',
     detalle: resultadoDefensa.value,
   });
 
+  if (config.value?.nombre !== 'Tesis de Grado') {
+    const publicacion = datosDeModulo(props.tramite, 'publicacion') || {};
+    etapas.push({
+      etapa: 'Publicación',
+      subetapa: '5. Publicación',
+      estado: publicacion.fecha_publicacion || publicacion.repositorio ? 'COMPLETADO' : 'PENDIENTE',
+      fecha: fechaLegible(publicacion.fecha_publicacion) || '—',
+      detalle: publicacion.repositorio || '—',
+    });
+  }
+
   etapas.push({
     etapa: 'Generación del reporte final',
-    subetapa: '6. Reporte final',
-    estado: avance.value >= 100 ? 'COMPLETADO' : 'EN PROCESO',
+    subetapa: config.value?.nombre === 'Tesis de Grado' ? 'Reporte' : '6. Reporte final',
+    estado: 'COMPLETADO',
     fecha: fechaEmision.value,
     detalle: 'Documento consolidado del trámite de titulación',
   });
@@ -524,7 +549,7 @@ function datosReporte() {
 let autogenerado = false;
 
 watch(
-  () => props.enProgreso && !props.completado,
+  () => props.enProgreso && !props.completado && !props.soloBoton,
   (disponible) => {
     if (!disponible || autogenerado) return;
     autogenerado = true;

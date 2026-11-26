@@ -129,23 +129,6 @@ export const useTesisStore = defineStore('tesis', {
                 throw error;
             }
         },
-        /**
-         * Sube el trabajo de investigación (publicación) tras aprobar la defensa.
-         *
-         * @param {number|string} id Identificador del trámite de tesis.
-         * @param {FormData} formData `documento_publicacion` y `observaciones` opcionales.
-         * @returns {Promise<Object>} Trámite actualizado.
-         */
-        async subirPublicacion(id, formData) {
-            this.enviando = true;
-            try {
-                const response = await tesisService.subirPublicacion(id, formData);
-                this.enviando = false;
-                return response;
-            } catch (error) {
-                this.enviando = false;
-                throw error;
-            }
-        },
+
     },
 });

@@ -41,7 +41,7 @@
         <table class="doc-tabla">
           <tbody>
             <tr>
-              <td class="doc-tabla__label">N.º de Resolución de Aprobación Final</td>
+              <td class="doc-tabla__label">N.º de Resolución HCC de aprobación</td>
               <td>{{ defensa.numero_resolucion || '—' }}</td>
             </tr>
             <tr>

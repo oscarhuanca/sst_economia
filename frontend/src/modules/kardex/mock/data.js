@@ -779,7 +779,7 @@ export function aplicarModuloMock(tramite, moduloId, datos) {
   // (estado terminal): el flujo termina aquí (espejo del TramiteService).
   const paso = Number(datos.paso ?? 2);
   const reprobada = moduloId === 'defensa'
-    && paso !== 1
+    && paso >= 3
     && datos.nota_final !== ''
     && datos.nota_final !== null
     && datos.nota_final !== undefined
@@ -792,8 +792,8 @@ export function aplicarModuloMock(tramite, moduloId, datos) {
     throw { message: 'El módulo del flujo no es reconocido.' };
   }
   const hoy = new Date().toISOString().slice(0, 10);
-  // La defensa se registra en dos pasos. La clave `paso` no se persiste (espejo
-  // del TramiteService): el paso 1 guarda los datos sin transicionar el estado.
+  // La defensa se registra en tres pasos. La clave `paso` no se persiste (espejo
+  // del TramiteService): los pasos 1 y 2 guardan datos sin transicionar el estado.
   const { paso: _paso, accion: _accion, ...datosGuardar } = datos;
   t.updated_at = new Date().toISOString();
   t.hitos = { ...(t.hitos || {}) };
@@ -807,7 +807,7 @@ export function aplicarModuloMock(tramite, moduloId, datos) {
     };
   }
 
-  if (moduloId === 'defensa' && paso === 1) {
+  if (moduloId === 'defensa' && paso <= 2) {
     return t;
   }
   t.estado_actual = estado;

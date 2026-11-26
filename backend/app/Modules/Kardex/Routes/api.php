@@ -27,6 +27,9 @@ Route::middleware(['auth:sanctum', 'role:'.implode(',', Roles::GESTION)])->group
     // otro trámite con el mismo título y lista los trabajos más parecidos.
     Route::get('/kardex/titulos-tesis', [KardexController::class, 'verificarTitulo']);
 
+    // Publica el documento final de tesis (PDF) desde KARDEX.
+    Route::post('/kardex/tramites/{id}/publicacion-final', [KardexController::class, 'publicarDocumentoFinal']);
+
     // Reportes estadísticos por modalidad, mes y año.
     Route::get('/kardex/reportes', [KardexController::class, 'reportes']);
 });

@@ -172,6 +172,14 @@ export const kardexService = {
     resumen() {
         return http.get('/kardex/resumen');
     },
+    /** Publica el documento final de tesis (PDF) desde KARDEX. */
+    publicarDocumentoFinalTesis(idTramite, archivo, observaciones = '') {
+        const formData = new FormData();
+        formData.append('documento_publicacion', archivo);
+        if (observaciones) formData.append('observaciones', observaciones);
+        return http.post(`/kardex/tramites/${idTramite}/publicacion-final`, formData);
+    },
+
     /** Reportes estadísticos por modalidad, mes, año o rango de fechas. */
     reportes(filtros = {}) {
         return http.get('/kardex/reportes', { params: filtros });

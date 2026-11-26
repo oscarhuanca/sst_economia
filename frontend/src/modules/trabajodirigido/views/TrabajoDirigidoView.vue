@@ -217,8 +217,8 @@
           </div>
         </div>
 
-        <!-- Perfil de proyecto: título y PDFs opcionales (editable en verificación) -->
-        <div v-if="perfilEditable" class="card overflow-hidden">
+        <!-- Perfil de proyecto: solo lectura en seguimiento -->
+        <div v-if="false" class="card overflow-hidden">
           <div class="h-2 bg-orange"></div>
           <div class="p-6 sm:p-8">
             <div class="flex flex-wrap items-center gap-4">
@@ -319,10 +319,7 @@
               <p class="mt-0.5 text-sm text-slate-200 italic">“{{ rechazoPerfil.observacion }}”</p>
             </div>
 
-            <button class="mt-3 btn-warm px-5 py-2.5" @click="abrirReenvio">
-              <AppIcon name="pencil" :size="15" />
-              Presentar Perfil Corregido
-            </button>
+            <p class="mt-3 text-xs font-semibold text-amber-300">Contacta a Kardex para corregir tu perfil.</p>
           </div>
         </div>
 
@@ -333,10 +330,7 @@
           <div class="flex-1">
             <p class="font-bold text-sm">La Comisión Revisora calificó tu documento como insuficiente.</p>
             <p class="text-sm mt-1">Debes revisar tu trabajo, corregir las observaciones señaladas y volver a presentarlo a la Comisión Revisora.</p>
-            <button class="mt-3 btn-warm px-5 py-2.5" @click="mostrarReenvioDocumento = true">
-              <AppIcon name="pencil" :size="15" />
-              Enviar Documento Corregido
-            </button>
+            <p class="mt-3 text-xs font-semibold text-amber-300">Contacta a Kardex/Comisión Revisora para el reenvío del documento corregido.</p>
           </div>
         </div>
 
@@ -367,9 +361,9 @@
         </div>
 
         <!-- Countdown del periodo de presentación / correcciones -->
-        <CountdownTitulacion v-if="countdownCfg" v-bind="countdownCfg" />
+        <CountdownTitulacion v-if="countdownCfg && !tramiteConcluido" v-bind="countdownCfg" />
 
-        <!-- Solicitud de fecha de defensa (la solicita el estudiante a Kardex/Secretaría) -->
+        <!-- Solicitud de fecha de defensa: solo lectura -->
         <div v-if="puedeSolicitarFechaDefensa(tramite.estado_actual)"
              class="rounded-2xl ring-1 p-5"
              :class="necesitaSolicitar ? 'bg-orange-500/10 ring-orange-500/30' : 'bg-emerald-500/10 ring-emerald-500/30'">
@@ -380,34 +374,12 @@
             </span>
             <div class="flex-1 min-w-0">
               <h4 class="font-bold text-white">Solicitud de fecha de defensa</h4>
-              <template v-if="necesitaSolicitar">
-                <template v-if="tramite.estado_actual === 'correcciones_90_dias'">
-                  <p class="text-sm text-slate-400 mt-1">
-                    Vuelve a solicitar una fecha para tu defensa después de corregir tu trabajo.
-                    Kardex o Secretaría la programará.
-                  </p>
-                </template>
-                <template v-else>
-                  <p class="text-sm text-slate-400 mt-1">
-                    Tu trabajo dirigido fue calificado como suficiente por la Comisión Revisora.
-                    Solicita una fecha para tu defensa; Kardex o Secretaría la programará.
-                  </p>
-                </template>
-                <form @submit.prevent="enviarSolicitudFecha" class="mt-3 flex flex-wrap items-end gap-2">
-                  <div class="w-full sm:w-auto">
-                    <label class="label">Fecha sugerida (opcional)</label>
-                    <input v-model="fechaSugerida" type="date" :min="hoyISO" class="input w-full sm:w-auto" />
-                  </div>
-                  <button type="submit" class="btn-primary px-5 py-2.5" :disabled="trabajoStore.enviando">
-                    <AppIcon v-if="trabajoStore.enviando" name="loader" :size="15" class="animate-spin" />
-                    <AppIcon v-else name="send" :size="15" />
-                    {{ trabajoStore.enviando ? 'Solicitando...' : 'Solicitar Fecha de Defensa' }}
-                  </button>
-                </form>
-              </template>
+              <p v-if="necesitaSolicitar" class="text-sm text-slate-400 mt-1">
+                Tu trabajo dirigido está habilitado para defensa. Kardex o Secretaría programará la fecha de defensa.
+              </p>
               <template v-else>
                 <p class="text-sm text-slate-400 mt-1">
-                  Tu solicitud fue enviada a Kardex o Secretaría,
+                  Solicitud registrada ante Kardex o Secretaría,
                   <span class="font-semibold text-emerald-300">
                     {{ tramite.hitos?.fecha_defensa_sugerida ? 'con fecha sugerida: ' + formatoFechaLarga(tramite.hitos.fecha_defensa_sugerida) + '.' : 'quienes te programarán una fecha de defensa.' }}
                   </span>
@@ -432,44 +404,29 @@
           </div>
         </div>
 
-        <!-- Trabajo dirigido: subida tras defensa aprobada -->
-        <div v-if="tramite.estado_actual === 'defensa_aprobada'" class="card overflow-hidden">
-          <div class="h-2 bg-orange"></div>
+        <!-- Publicación del documento final: la realiza Kardex -->
+        <div v-if="tramite.estado_actual === 'defensa_aprobada' || tramite.estado_actual === 'titulado'" class="card overflow-hidden">
+          <div class="h-2" :class="publicacionSubida ? 'bg-emerald-500' : 'bg-orange'"></div>
           <div class="p-6 sm:p-8">
             <div class="flex flex-wrap items-center gap-4">
-              <div class="w-14 h-14 rounded-2xl bg-orange-500/10 border border-orange-500/30 flex items-center justify-center text-orange-300">
-                <AppIcon name="book" :size="26" />
+              <div class="w-14 h-14 rounded-2xl flex items-center justify-center" :class="publicacionSubida ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300' : 'bg-orange-500/10 border border-orange-500/30 text-orange-300'">
+                <AppIcon :name="publicacionSubida ? 'check-circle' : 'book'" :size="26" />
               </div>
               <div>
-                <h3 class="text-lg font-extrabold text-white">Trabajo Dirigido</h3>
-                <p class="text-sm text-slate-400">Tu defensa fue aprobada. Sube el PDF de tu trabajo dirigido para que KARDEX lo valide y cierre tu flujo.</p>
+                <h3 class="text-lg font-extrabold text-white">Publicación del documento final</h3>
+                <p class="text-sm text-slate-400">
+                  {{ publicacionSubida ? 'Kardex registró la publicación de tu documento final de trabajo dirigido.' : 'Tu defensa fue aprobada. Kardex publicará el documento final de tu trabajo dirigido para cerrar el procedimiento.' }}
+                </p>
               </div>
             </div>
-
             <p v-if="publicacionSubida" class="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-emerald-300">
               <AppIcon name="check-circle" :size="16" />
-              Trabajo enviado el {{ formatoFechaLarga(tramite.hitos.modulos.publicacion.fecha_publicacion) }}. KARDEX lo está validando.
+              Documento publicado el {{ formatoFechaLarga(tramite.hitos?.modulos?.publicacion?.fecha_publicacion) }}.
             </p>
-
-            <form v-else @submit.prevent="enviarPublicacion" class="mt-5 flex flex-wrap items-center gap-3">
-              <label :class="['flex items-center justify-between gap-3 px-4 py-3 rounded-xl border-2 border-dashed cursor-pointer transition min-w-0 sm:max-w-md flex-1', archivoPublicacion ? 'border-orange-500/50 bg-orange-500/10' : 'border-white/10 bg-white/5 hover:border-orange-500/40']">
-                <span class="flex items-center gap-2 text-sm min-w-0" :class="archivoPublicacion ? 'text-orange-200' : 'text-slate-400'">
-                  <AppIcon v-if="archivoPublicacion" name="check-circle" :size="18" class="text-emerald-400 shrink-0" />
-                  <AppIcon v-else name="file-text" :size="18" class="shrink-0" />
-                  <span class="truncate">{{ archivoPublicacion?.name || 'Selecciona el archivo PDF...' }}</span>
-                </span>
-                <input type="file" accept=".pdf" class="hidden" @change="handlePublicacion">
-                <span class="btn-ghost !py-2 pointer-events-none">
-                  <AppIcon name="plus" :size="15" />
-                  Subir
-                </span>
-              </label>
-              <button type="submit" class="btn-primary px-6 py-2.5" :disabled="trabajoStore.enviando || !archivoPublicacion">
-                <AppIcon v-if="trabajoStore.enviando" name="loader" :size="15" class="animate-spin" />
-                <AppIcon v-else name="send" :size="15" />
-                {{ trabajoStore.enviando ? 'Enviando...' : 'Enviar Trabajo' }}
-              </button>
-            </form>
+            <a v-if="publicacionSubida && tramite.hitos?.modulos?.publicacion?.archivo?.ruta" :href="assetUrl(tramite.hitos.modulos.publicacion.archivo.ruta)" target="_blank" rel="noopener noreferrer" class="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-orange-300 hover:text-orange-200 hover:underline">
+              <AppIcon name="file-text" :size="14" />
+              Ver documento final
+            </a>
           </div>
         </div>
 
@@ -675,6 +632,7 @@ const trabajoAprobado = computed(() =>
   trabajoTerminado.value && ['aprobado', 'titulado'].includes(tramite.value?.estado_actual)
 );
 const titulado = computed(() => tramite.value?.estado_actual === 'titulado');
+const tramiteConcluido = computed(() => ['titulado', 'reprobado'].includes(tramite.value?.estado_actual || ''));
 const trabajoReprobado = computed(() =>
   trabajoTerminado.value && ['reprobado'].includes(tramite.value?.estado_actual)
 );
@@ -738,6 +696,11 @@ const documentosEdicion = ref({ nota_solicitud: null, certificado_notas: null, p
 watch(tituloVigente, (valor) => {
   tituloPerfilEdicion.value = valor || '';
 }, { immediate: true });
+
+watch(tramiteConcluido, (concluido) => {
+  if (concluido) detenerSeguimiento();
+  else iniciarSeguimiento();
+});
 
 // true mientras la solicitud está en verificación y el estudiante puede corregir su perfil.
 const perfilEditable = computed(() => tramite.value?.estado_actual === 'solicitud_presentada');
@@ -835,13 +798,18 @@ onMounted(async () => {
   }
 
   ultimoEstadoVisto = tramite.value?.estado_actual || null;
-  iniciarSeguimiento();
+  if (!tramiteConcluido.value) iniciarSeguimiento();
 });
 
 onUnmounted(() => {
-  if (temporizadorSeguimiento) clearInterval(temporizadorSeguimiento);
-  document.removeEventListener('visibilitychange', alCambiarVisibilidad);
+  detenerSeguimiento();
 });
+
+function detenerSeguimiento() {
+  if (temporizadorSeguimiento) clearInterval(temporizadorSeguimiento);
+  temporizadorSeguimiento = null;
+  document.removeEventListener('visibilitychange', alCambiarVisibilidad);
+}
 
 /**
  * Arranca el sondeo periódico del trámite para que el estudiante vea los
@@ -849,7 +817,7 @@ onUnmounted(() => {
  * `visibilitychange` sincroniza de inmediato al volver a la pestaña.
  */
 function iniciarSeguimiento() {
-  if (temporizadorSeguimiento) return;
+  if (temporizadorSeguimiento || tramiteConcluido.value) return;
   temporizadorSeguimiento = setInterval(sincronizarTramite, INTERVALO_SEGUIMIENTO);
   document.addEventListener('visibilitychange', alCambiarVisibilidad);
 }
@@ -865,7 +833,7 @@ function alCambiarVisibilidad() {
  * la petición falla, y no se solapa si la anterior sigue en curso.
  */
 async function sincronizarTramite() {
-  if (sincronizando || document.visibilityState === 'hidden') return;
+  if (sincronizando || document.visibilityState === 'hidden' || tramiteConcluido.value) return;
   sincronizando = true;
   try {
     await tramitesStore.cargarTramiteActivo(true);
@@ -874,6 +842,7 @@ async function sincronizarTramite() {
       toastStore.info(`Kardex actualizó tu trabajo dirigido: ${formatoEstado(estado)}.`);
     }
     ultimoEstadoVisto = estado;
+    if (tramiteConcluido.value) detenerSeguimiento();
   } finally {
     sincronizando = false;
   }

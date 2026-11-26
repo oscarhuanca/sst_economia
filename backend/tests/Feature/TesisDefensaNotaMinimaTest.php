@@ -8,25 +8,27 @@ use App\Models\Tramite;
 use App\Models\User;
 use App\Support\Roles;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
-/**
- * Nota mínima de la defensa de tesis (módulo 4 del flujo de titulación):
- * con 51 o más el trámite pasa a `defensa_aprobada`; con menos queda
- * `reprobado` (estado terminal), el flujo termina y el estudiante deberá
- * volver a solicitar la modalidad de graduación.
- */
+    /**
+     * Nota mínima de la defensa de tesis (módulo 4 del flujo de titulación):
+     * con 51 o más el trámite queda `titulado`; con menos queda `reprobado`
+     * (estado terminal), el flujo termina y el estudiante deberá volver a
+     * solicitar la modalidad de graduación.
+     */
 class TesisDefensaNotaMinimaTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_una_nota_en_el_minimo_aprueba_la_defensa(): void
+    public function test_una_nota_en_el_minimo_titula_la_tesis(): void
     {
         $tramite = $this->crearTramiteEnDefensa();
 
         $this->defensa($tramite, 51)->assertCreated();
 
-        $this->assertSame('defensa_aprobada', $tramite->refresh()->estado_actual);
+        $this->assertSame('titulado', $tramite->refresh()->estado_actual);
     }
 
     public function test_una_nota_inferior_al_minimo_deja_el_tramite_reprobado(): void
@@ -83,6 +85,7 @@ class TesisDefensaNotaMinimaTest extends TestCase
 
         $this->guardarModulo($tramite, 'defensa', [
             'numero_resolucion' => 'HCC-0315/2026',
+            'fecha_resolucion' => '2026-10-01',
             'fecha_defensa' => '2026-10-20',
         ])
             ->assertStatus(422)
@@ -100,6 +103,7 @@ class TesisDefensaNotaMinimaTest extends TestCase
         $this->guardarModulo($tramite, 'defensa', [
             'empastados_cd_entregados' => true,
             'numero_resolucion' => 'HCC-0315/2026',
+            'fecha_resolucion' => '2026-10-01',
             'fecha_defensa' => '2026-10-20',
             'paso' => 2,
         ])->assertCreated();
@@ -110,7 +114,33 @@ class TesisDefensaNotaMinimaTest extends TestCase
         $this->assertSame('tribunal_asignado', $tramite->estado_actual);
         $this->assertTrue((bool) $modulo['empastados_cd_entregados']);
         $this->assertSame('HCC-0315/2026', $modulo['numero_resolucion']);
+        $this->assertSame('2026-10-01', $modulo['fecha_resolucion']);
         $this->assertSame('2026-10-20', $modulo['fecha_defensa']);
+    }
+
+    public function test_guarda_el_pdf_de_la_resolucion_hcc_de_aprobacion(): void
+    {
+        $tramite = $this->crearTramiteEnDefensa();
+        $kardex = User::factory()->role(Roles::GESTION[0])->create();
+
+        $this->actingAs($kardex)
+            ->post("/api/tramites/{$tramite->id_tramite}/flujo/defensa", [
+                'datos' => [
+                    'numero_resolucion' => 'HCC-0315/2026',
+                    'fecha_resolucion' => '2026-10-01',
+                    'empastados_cd_entregados' => true,
+                    'paso' => 2,
+                ],
+                'resolucion_defensa' => UploadedFile::fake()->create('resolucion_defensa.pdf', 100, 'application/pdf'),
+            ])
+            ->assertCreated();
+
+        $tramite->refresh();
+        $modulo = $tramite->hitos['modulos']['defensa'];
+
+        $this->assertSame('tribunal_asignado', $tramite->estado_actual);
+        $this->assertSame('resolucion_defensa.pdf', $modulo['resolucion_defensa']['nombre']);
+        Storage::disk('public')->assertExists($modulo['resolucion_defensa']['ruta']);
     }
 
     // ------------------------------------------------------------------
@@ -135,6 +165,7 @@ class TesisDefensaNotaMinimaTest extends TestCase
         return $this->guardarModulo($tramite, 'defensa', [
             'empastados_cd_entregados' => true,
             'numero_resolucion' => 'HCC-0315/2026',
+            'fecha_resolucion' => '2026-10-01',
             'fecha_defensa' => '2026-10-20',
             'nota_final' => $nota,
         ]);

@@ -111,6 +111,19 @@
       </div>
 
       <FlujoExcelencia v-else :tramite="kardexStore.tramite" :docentes="docentes" />
+
+      <div
+        v-if="esExcelencia && kardexStore.tramite?.estado_actual === 'titulado'"
+        class="rounded-2xl bg-emerald-500/10 border border-emerald-500/30 p-6 sm:p-8 text-center"
+      >
+        <div class="mx-auto w-16 h-16 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-300 mb-4">
+          <AppIcon name="award" :size="34" />
+        </div>
+        <h2 class="text-2xl font-extrabold text-emerald-300">¡FELICIDADES!</h2>
+        <p class="mt-2 text-sm font-medium text-emerald-400 max-w-md mx-auto">
+          El estudiante concluyó satisfactoriamente su trámite hasta la titulación por Excelencia Académica.
+        </p>
+      </div>
     </template>
   </div>
 </template>

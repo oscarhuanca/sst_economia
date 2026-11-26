@@ -130,7 +130,7 @@ class ExcelenciaService
         self::MODULO_DESIGNACION => 'tribunal_designado',
         self::MODULO_INFORME => 'informe_tribunal_registrado',
         self::MODULO_RESOLUCION => 'resolucion_hcc_registrada',
-        self::MODULO_ACTA => 'acta_lectura_registrada',
+        self::MODULO_ACTA => 'titulado',
         self::MODULO_REPORTE => 'titulado',
 
     ];
@@ -609,8 +609,8 @@ class ExcelenciaService
         $fecha = trim((string) $datos['fecha_lectura']);
 
         return [
-            'estado' => 'acta_lectura_registrada',
-            'observacion' => "Acta de Excelencia Académica generada. Lectura registrada con fecha {$fecha}.",
+            'estado' => 'titulado',
+            'observacion' => "Acta de Excelencia Académica generada y leída con fecha {$fecha}. Trámite concluido; estudiante titulado por Excelencia Académica.",
         ];
     }
 

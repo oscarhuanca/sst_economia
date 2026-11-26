@@ -54,8 +54,8 @@ class TramiteStateService
         // por el flujo heredado (investigación) o registrar el tema (nuevo).
         'tutor_asignado' => ['tema_aprobado', 'investigacion_en_desarrollo'],
         'tema_aprobado' => ['tribunal_asignado'],
-        'tribunal_asignado' => ['defensa_aprobada', 'solicitud_fecha_defensa', 'reprobado'],
-        'defensa_aprobada' => ['publicado'],
+        'tribunal_asignado' => ['defensa_aprobada', 'titulado', 'solicitud_fecha_defensa', 'reprobado'],
+        'defensa_aprobada' => ['publicado', 'titulado'],
         'publicado' => ['titulado'],
         'reporte_generado' => ['titulado'],
         // 4. Flujo heredado: investigación, comisión revisora y defensa.
@@ -68,10 +68,10 @@ class TramiteStateService
         // `defensa_aprobada` (nota mínima alcanzada) o `reprobado` (nota por
         // debajo del mínimo): en ese caso el flujo termina y el estudiante
         // debe volver a solicitar la modalidad de graduación.
-        'suficiente' => ['solicitud_fecha_defensa', 'defensa_aprobada', 'reprobado'],
-        'solicitud_fecha_defensa' => ['defensa_programada', 'defensa_aprobada', 'reprobado'],
-        'defensa_programada' => ['defensa_en_curso', 'defensa_aprobada', 'reprobado'],
-        'defensa_en_curso' => ['aprobado', 'correcciones_90_dias', 'defensa_aprobada', 'reprobado'],
+        'suficiente' => ['solicitud_fecha_defensa', 'defensa_aprobada', 'titulado', 'reprobado'],
+        'solicitud_fecha_defensa' => ['defensa_programada', 'defensa_aprobada', 'titulado', 'reprobado'],
+        'defensa_programada' => ['defensa_en_curso', 'defensa_aprobada', 'titulado', 'reprobado'],
+        'defensa_en_curso' => ['aprobado', 'correcciones_90_dias', 'defensa_aprobada', 'titulado', 'reprobado'],
         // Tras reprobar la defensa, el estudiante tiene 90 días para corregir
         // y volver a solicitar una fecha; si no, la gestión lo pasa a `reprobado`.
         'correcciones_90_dias' => ['solicitud_fecha_defensa', 'reprobado'],
@@ -163,9 +163,9 @@ class TramiteStateService
             'tribunal_designado' => ['informe_tribunal_registrado'],
             // 3. Calificación por áreas del postulante.
             'informe_tribunal_registrado' => ['resolucion_hcc_registrada'],
-            // 4. Generación del acta y registro de la fecha de lectura.
-            'resolucion_hcc_registrada' => ['acta_lectura_registrada'],
-            // 5. Reporte final: titula al estudiante.
+            // 4. Generación/lectura del acta: concluye el trámite y titula.
+            'resolucion_hcc_registrada' => ['acta_lectura_registrada', 'titulado'],
+            // Compatibilidad con trámites que quedaron en el estado intermedio.
             'acta_lectura_registrada' => ['titulado'],
         ],
     ];

@@ -23,20 +23,20 @@
           v-for="act in actualizaciones"
           :key="act.id"
           class="rounded-xl ring-1 px-4 py-3.5"
-          :class="act.id === 'publicacion' ? 'bg-emerald-500/10 ring-emerald-500/30' : 'bg-white/5 ring-white/10'"
+          :class="claseTarjeta(act)"
         >
           <div class="flex flex-wrap items-center justify-between gap-2">
             <div class="flex items-center gap-2.5 min-w-0">
               <span
                 class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ring-1"
-                :class="act.id === 'publicacion' ? 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/40' : 'bg-orange-500/10 text-orange-300 ring-orange-500/30'"
+                :class="act.completado ? (act.id === 'publicacion' ? 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/40' : 'bg-orange-500/10 text-orange-300 ring-orange-500/30') : 'bg-slate-500/10 text-slate-400 ring-slate-500/30'"
               >
-                <AppIcon :name="act.icon" :size="16" />
+                <AppIcon :name="act.completado ? act.icon : 'clock'" :size="16" />
               </span>
               <div class="min-w-0">
-                <p class="text-sm font-bold text-white truncate">{{ act.label }}</p>
-                <p class="text-[11px] font-semibold uppercase tracking-wide text-orange-300">
-                  {{ act.badge }}
+                <p class="text-sm font-bold truncate" :class="act.completado ? 'text-white' : 'text-slate-300'">{{ act.label }}</p>
+                <p class="text-[11px] font-semibold uppercase tracking-wide" :class="act.completado ? 'text-orange-300' : 'text-slate-500'">
+                  {{ act.completado ? act.badge : 'Pendiente' }}
                 </p>
               </div>
             </div>
@@ -61,6 +61,7 @@
               </dd>
             </div>
           </dl>
+          <p v-else class="mt-2 text-xs text-slate-500">Aún no registrado por Kardex.</p>
         </li>
       </ol>
     </div>
@@ -69,10 +70,6 @@
 
 <script setup>
 // Flujo seguido por Kardex (lado del estudiante) del Módulo de Trabajo Dirigido.
-// Muestra, por cada módulo del flujo de titulación que Kardex ya registró, el
-// estado alcanzado, la fecha y el detalle que quedó guardado (resoluciones,
-// tribunal, tema, nota de defensa, publicación). Solo se alimenta del propio
-// trámite del estudiante.
 import { computed } from 'vue';
 import { actualizacionesKardex } from '../utils/flujoTitulacion';
 import { assetUrl } from '@/core/http/storage';
@@ -84,4 +81,9 @@ const props = defineProps({
 });
 
 const actualizaciones = computed(() => actualizacionesKardex(props.tramite));
+
+function claseTarjeta(act) {
+  if (!act.completado) return 'bg-white/[0.03] ring-white/10 opacity-80';
+  return act.id === 'publicacion' ? 'bg-emerald-500/10 ring-emerald-500/30' : 'bg-white/5 ring-white/10';
+}
 </script>

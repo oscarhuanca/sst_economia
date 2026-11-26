@@ -1,6 +1,6 @@
-<template>
+﻿<template>
   <div class="space-y-5">
-    <!-- Resumen del trámite + barra de progreso -->
+    <!-- Resumen del trÃ¡mite + barra de progreso -->
     <div class="card p-5">
       <div class="flex flex-wrap items-center justify-between gap-4">
         <div class="flex items-center gap-3">
@@ -14,7 +14,7 @@
               {{ estudiante.nombres }} {{ estudiante.apellidos }}
             </h3>
             <p class="text-xs text-slate-400">
-              CI {{ estudiante.ci }} · {{ tramite.modalidad?.nombre }}
+              CI {{ estudiante.ci }} Â· {{ tramite.modalidad?.nombre }}
             </p>
           </div>
         </div>
@@ -43,7 +43,7 @@
           </div>
           <div>
             <h4 class="font-bold text-white uppercase">Solicitud Presentada</h4>
-            <p class="text-xs text-slate-400">Punto de partida del flujo de titulación</p>
+            <p class="text-xs text-slate-400">Punto de partida del flujo de titulaciÃ³n</p>
           </div>
         </div>
         <span
@@ -54,7 +54,7 @@
         </span>
       </div>
       <p v-if="fechaInicio" class="mt-3 text-xs text-slate-400">
-        Trámite presentado el <span class="font-semibold text-slate-300">{{ fechaInicio }}</span>
+        TrÃ¡mite presentado el <span class="font-semibold text-slate-300">{{ fechaInicio }}</span>
       </p>
     </div>
 
@@ -114,6 +114,17 @@
           :editando="editandoId === m.id"
           :datos="m.datos"
           :cargando="guardandoId === m.id"
+          @guardar="(datos, archivos) => guardar(m.id, datos, archivos)"
+        />
+        <ModuloPublicacion
+          v-else-if="m.id === 'publicacion'"
+          :id="`modulo-${m.id}`"
+          :completado="m.completado"
+          :en-progreso="m.enProgreso"
+          :bloqueado="m.bloqueado"
+          :editando="editandoId === m.id"
+          :datos="m.datos"
+          :cargando="guardandoId === m.id"
           @guardar="(datos) => guardar(m.id, datos)"
         />
         <ModuloReporte
@@ -124,28 +135,13 @@
           :bloqueado="m.bloqueado"
           :datos="m.datos"
           :tramite="tramite"
-          :docentes="docentes"
-          :simulado="kardexStore.simulado"
           :cargando="guardandoId === m.id"
-          @guardar="(datos) => guardar(m.id, datos)"
-        />
-        <ModuloPublicacion
-          v-else
-          :id="`modulo-${m.id}`"
-          :completado="m.completado"
-          :en-progreso="m.enProgreso"
-          :bloqueado="m.bloqueado"
-          :editando="editandoId === m.id"
-          :datos="m.datos"
-          :cargando="guardandoId === m.id"
-          :tramite="tramite"
-          :simulado="kardexStore.simulado"
           @guardar="(datos) => guardar(m.id, datos)"
         />
       </template>
     </div>
 
-    <!-- Acta de reprobación (área imprimible fuera de pantalla, PDF en navegador) -->
+    <!-- Acta de reprobaciÃ³n (Ã¡rea imprimible fuera de pantalla, PDF en navegador) -->
     <ActaReprobacionDefensa ref="actaReprobacion" :tramite="tramiteActa || tramite" :defensa="defensaActa" />
   </div>
 </template>
@@ -174,8 +170,8 @@ import ModuloPerfil from './ModuloPerfil.vue';
 import ModuloAprobacionTema from './ModuloAprobacionTema.vue';
 import ModuloTribunalRevisor from './ModuloTribunalRevisor.vue';
 import ModuloDefensa from './ModuloDefensa.vue';
-import ModuloReporte from './ModuloReporte.vue';
 import ModuloPublicacion from './ModuloPublicacion.vue';
+import ModuloReporte from './ModuloReporte.vue';
 import ActaReprobacionDefensa from './ActaReprobacionDefensa.vue';
 
 const props = defineProps({
@@ -197,8 +193,8 @@ const actaReprobacion = ref(null);
 // Datos de la defensa reprobada con la que se emite el acta en PDF.
 const defensaActa = ref(null);
 
-// Trámite actualizado con el que se emite el acta en PDF (incluye el
-// historial con la reprobación recién registrada).
+// TrÃ¡mite actualizado con el que se emite el acta en PDF (incluye el
+// historial con la reprobaciÃ³n reciÃ©n registrada).
 const tramiteActa = ref(null);
 
 const estudiante = computed(() => props.tramite?.estudiante || {});
@@ -206,14 +202,14 @@ const estadoBadge = computed(() => estadoBadgeTitulacion(props.tramite));
 const progreso = computed(() => pctTitulacion(props.tramite));
 const proximoPendiente = computed(() => proximoModuloPendiente(props.tramite));
 
-// Configuración de la modalidad del trámite (Tesis de Grado, Trabajo Dirigido):
-// define el módulo de perfil, sus documentos y sus textos.
+// ConfiguraciÃ³n de la modalidad del trÃ¡mite (Tesis de Grado, Trabajo Dirigido):
+// define el mÃ³dulo de perfil, sus documentos y sus textos.
 const config = computed(() => configDeTramite(props.tramite));
 
-// Una vez remitido, el módulo 1 queda solo para consulta: el HCC gestiona el tema y el tutor.
+// Una vez remitido, el mÃ³dulo 1 queda solo para consulta: el HCC gestiona el tema y el tutor.
 const perfilRemitido = computed(() => props.tramite?.estado_actual === 'pendiente_concejo_universitario');
 
-// Motivo y observación del último rechazo del perfil (los ve el estudiante).
+// Motivo y observaciÃ³n del Ãºltimo rechazo del perfil (los ve el estudiante).
 const rechazoPerfil = computed(() => rechazoPerfilDe(props.tramite));
 
 const tituloPerfilTramite = computed(() => tituloPerfil(props.tramite));
@@ -249,7 +245,7 @@ async function guardar(moduloId, datos, archivos = {}) {
     : datos;
   const res = validarModulo(moduloId, datosValidar, config.value?.nombre);
   if (!res.ok) {
-    toastStore.error(res.errores.join(' · '));
+    toastStore.error(res.errores.join(' Â· '));
     return;
   }
   guardando.value = true;
@@ -260,55 +256,58 @@ async function guardar(moduloId, datos, archivos = {}) {
   if (actualizado) {
     if (moduloId === 'defensa' && defensaReprobada(datos)) {
       toastStore.warning(
-        `Defensa REPROBADA con ${datos.nota_final} puntos (mínimo ${NOTA_MINIMA_DEFENSA}). `
-        + 'El flujo de titulación terminó; el estudiante deberá volver a solicitar la '
-        + 'modalidad de graduación.',
+        `Defensa REPROBADA con ${datos.nota_final} puntos (mÃ­nimo ${NOTA_MINIMA_DEFENSA}). `
+        + 'El flujo de titulaciÃ³n terminÃ³; el estudiante deberÃ¡ volver a solicitar la '
+        + 'modalidad de graduaciÃ³n.',
         7000,
       );
       defensaActa.value = { ...(actualizado?.hitos?.modulos?.defensa || {}), ...datos };
       tramiteActa.value = actualizado;
       const generada = await actaReprobacion.value?.generar();
       if (generada) {
-        toastStore.success('Acta de reprobación de defensa descargada en PDF.');
+        toastStore.success('Acta de reprobaciÃ³n de defensa descargada en PDF.');
       } else {
-        toastStore.error('No se pudo generar el acta de reprobación PDF.');
+        toastStore.error('No se pudo generar el acta de reprobaciÃ³n PDF.');
       }
       editandoId.value = null;
       emit('guardado', actualizado);
       return;
     }
+    const defensaPasoIntermedio = moduloId === 'defensa' && Number(datos.paso ?? 3) < 3;
     toastStore.success(
-      moduloId === 'defensa' && Number(datos.paso ?? 3) < 3
-        ? 'Resolución y fecha de defensa registradas.'
+      defensaPasoIntermedio
+        ? Number(datos.paso) === 2
+          ? 'Empastados y CD registrados.'
+          : 'ResoluciÃ³n HCC registrada.'
         : moduloId === 'aprobacion_tema' && Number(datos.paso) === 2
-          ? 'Designación del tutor registrada.'
+          ? 'DesignaciÃ³n del tutor registrada.'
           : moduloId === 'aprobacion_tema' && Number(datos.paso) === 3
             ? 'Nota de suficiencia del tutor registrada.'
             : datos.accion === 'remitir'
-              ? 'Documentación verificada y remitida al HCC.'
+              ? 'DocumentaciÃ³n verificada y remitida al HCC.'
               : datos.accion === 'rechazar'
-                ? 'Perfil rechazado. Se notificó al estudiante para que presente otro perfil.'
+                ? 'Perfil rechazado. Se notificÃ³ al estudiante para que presente otro perfil.'
                 : editandoId.value === moduloId
-                  ? `Paso actualizado — ${modulo.badge}`
-                  : `Paso completado — ${modulo.badge}`,
+                  ? `Paso actualizado â€” ${modulo.badge}`
+                  : `Paso completado â€” ${modulo.badge}`,
     );
-    editandoId.value = null;
+    if (!defensaPasoIntermedio) editandoId.value = null;
     emit('guardado', actualizado);
   } else {
     toastStore.error(kardexStore.errorMessage || 'No se pudo guardar el paso.');
   }
 }
 
-/** ¿La nota de la defensa registrada reproba (por debajo del mínimo)? */
+/** Â¿La nota de la defensa registrada reproba (por debajo del mÃ­nimo)? */
 function defensaReprobada(datos) {
   const nota = Number(datos?.nota_final);
   return !Number.isNaN(nota) && nota < NOTA_MINIMA_DEFENSA;
 }
 
-// Verificación de unicidad disparada desde el resumen del postulante.
+// VerificaciÃ³n de unicidad disparada desde el resumen del postulante.
 function verificarTituloPerfil() {
-  // El ref vive dentro de un v-for: puede llegar como instancia única o como
-  // arreglo según how Vue lo collecting (se toma la primera de ambas formas).
+  // El ref vive dentro de un v-for: puede llegar como instancia Ãºnica o como
+  // arreglo segÃºn how Vue lo collecting (se toma la primera de ambas formas).
   const referencia = moduloPerfil.value;
   const instancia = Array.isArray(referencia) ? referencia[0] : referencia;
   instancia?.verificarTitulo?.();
