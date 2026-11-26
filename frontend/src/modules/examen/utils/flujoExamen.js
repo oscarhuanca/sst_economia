@@ -1,13 +1,13 @@
 // ============================================================================
 // Flujo de Examen de Grado gestionado por KARDEX.
 //
-// Describe la modalidad como una secuencia de 8 módulos. A diferencia de la
-// Tesis, aquí NO hay tutor ni tribunal: dos sorteos de bolo, un módulo que
-// registra la Resolución de aprobación del resultado del teórico, un módulo que
-// registra la Resolución de asignación de notas, un módulo de ASIGNACIÓN DE
-// NOTAS que cierra ambos exámenes juntos y un reporte final, y el estudiante
-// puede REABRIR el trámite cuando quedó con alguno de los dos exámenes sin
-// aprobar, consumiendo otro intento.
+// Describe la modalidad como una secuencia de 7 módulos, más un reporte final
+// independiente. A diferencia de la Tesis, aquí NO hay tutor ni tribunal: dos
+// sorteos de bolo, un módulo que registra la Resolución de aprobación del
+// resultado del teórico, un módulo que registra la Resolución de asignación de
+// notas y un módulo de ASIGNACIÓN DE NOTAS que cierra ambos exámenes juntos.
+// El estudiante puede REABRIR el trámite cuando quedó con alguno de los dos
+// exámenes sin aprobar, consumiendo otro intento.
 //
 // El alcance de la reapertura depende de qué examen no se aprobó:
 //   - Reprobar UN SOLO examen reabre únicamente ese examen: la nota del examen
@@ -41,6 +41,8 @@
 // la asignación de notas): su validación se hace contra el historial del
 // intento en curso, mientras que la verificación de intentos y la habilitación
 // se mantienen tras reabrir.
+export const MODULO_REPORTE = 'reporte';
+
 export const MODULOS_FLUJO_EXAMEN = [
   {
     id: 'verificacion_intentos',

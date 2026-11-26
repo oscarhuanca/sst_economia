@@ -22,15 +22,16 @@
 
     <template v-else>
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Registro Universitario" :value="perfilEstudiante.registro_universitario" icon="file-text" tone="amber" />
-        <StatCard label="Email" :value="perfilEstudiante.email || '—'" icon="mail" tone="rose" />
-        <StatCard label="" :value="perfilEstudiante.promedio_global ?? '—'" icon="chart" tone="orange" />
+        <StatCard label="Registro Universitario" :value="perfilEstudiante.registro_universitario" icon="file-text" tone="amber" compact />
+        <StatCard label="Email" :value="perfilEstudiante.email || '—'" icon="mail" tone="rose" compact />
+        <StatCard label="C.I." :value="perfilEstudiante.ci || '—'" icon="user" tone="orange" compact />
         <StatCard
           label="Estado del Trámite"
           :value="tramitesStore.tramiteActivo ? formatoEstado(tramitesStore.tramiteActivo.estado_actual) : '—'"
           :icon="tramitesStore.tramiteActivo ? 'trending-up' : 'inbox'"
           :tone="tramitesStore.tramiteActivo ? 'amber' : 'rose'"
           :sublabel="tramitesStore.tramiteActivo ? tramitesStore.tramiteActivo.modalidad.nombre : 'Sin trámite activo'"
+          compact
         />
       </div>
 
@@ -168,16 +169,15 @@
           </div>
         </router-link>
 
-        <template v-if="mostrarInicioSolicitud">
-          <div v-if="terminalAprobada" class="rounded-2xl bg-emerald-500/10 border border-emerald-500/30 p-5 flex items-start gap-3 text-emerald-300">
-            <AppIcon name="award" :size="22" class="mt-0.5 shrink-0" />
-            <p class="text-sm font-medium">
-              <strong>¡FELICIDADES APROBADO!</strong> Tu {{ articuloModalidad }} fue aprobada
-              y ya no puedes realizar más solicitudes de trámite.
-            </p>
-          </div>
+        <div v-if="tramiteAprobado" class="rounded-2xl bg-emerald-500/10 border border-emerald-500/30 p-6 flex items-start gap-3 text-emerald-300">
+          <AppIcon name="award" :size="24" class="mt-0.5 shrink-0" />
+          <p class="text-base font-semibold">
+            ¡FELICIDADES! Culminaste satisfactoriamente aprobando esta modalidad de titulación.
+          </p>
+        </div>
 
-          <div v-else-if="terminalReprobada" class="rounded-xl bg-red-900/50 border border-red-500/30 p-4 flex items-start gap-3 text-red-400">
+        <template v-if="mostrarInicioSolicitud">
+          <div v-if="terminalReprobada" class="rounded-xl bg-red-900/50 border border-red-500/30 p-4 flex items-start gap-3 text-red-400">
             <AppIcon name="x-circle" :size="20" class="mt-0.5 shrink-0" />
             <p class="text-sm font-medium">
               Tu {{ articuloModalidad }} no fue aprobada.
@@ -329,11 +329,10 @@ const displayNombres = computed(() =>
 // true si el trámite activo ya alcanzó un estado terminal.
 const tramiteTerminado = computed(() => ESTADOS_TERMINALES.includes(tramitesStore.tramiteActivo?.estado_actual));
 
-// Resultados terminales de la modalidad: aprobada bloquea nuevos trámites;
-// reprobada habilita la re-opción de modalidad según los plazos reglamentarios.
-const terminalAprobada = computed(() =>
-  ['Tesis de Grado', 'Trabajo Dirigido'].includes(tramitesStore.tramiteActivo?.modalidad?.nombre)
-  && tramitesStore.tramiteActivo?.estado_actual === 'aprobado'
+// Aprobar cierra la titulación en cualquier modalidad: no se permiten más
+// solicitudes ni se muestran las demás modalidades.
+const tramiteAprobado = computed(() =>
+  ['aprobado', 'titulado'].includes(tramitesStore.tramiteActivo?.estado_actual)
 );
 const terminalReprobada = computed(() =>
   ['Tesis de Grado', 'Trabajo Dirigido'].includes(tramitesStore.tramiteActivo?.modalidad?.nombre)
@@ -418,7 +417,9 @@ watch(refrescoEnVivo, (activo) => {
 }, { immediate: true });
 
 // Permite iniciar una nueva solicitud solo si no hay trámite activo o ya terminó.
-const mostrarInicioSolicitud = computed(() => !tramitesStore.tramiteActivo || tramiteTerminado.value);
+const mostrarInicioSolicitud = computed(() =>
+  !tramiteAprobado.value && (!tramitesStore.tramiteActivo || tramiteTerminado.value),
+);
 
 // Carga inicial: perfil y trámite activo. El listener de pestaña alimenta el
 // refresco en vivo del Examen de Grado.

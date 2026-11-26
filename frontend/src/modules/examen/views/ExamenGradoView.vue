@@ -45,31 +45,31 @@
         </p>
       </div>
 
-      <div v-else-if="esExamen && tramite?.estado_actual === 'titulado'" class="rounded-2xl bg-emerald-500/10 border border-emerald-500/30 p-6 text-center">
+      <div v-else-if="examenAprobado" class="rounded-2xl bg-emerald-500/10 border border-emerald-500/30 p-6 text-center">
         <div class="mx-auto w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-300">
           <AppIcon name="award" :size="28" />
         </div>
         <h2 class="mt-3 text-lg font-extrabold text-emerald-300">¡FELICIDADES!</h2>
         <p class="mt-1 text-sm text-emerald-400">
-          Tu titulación por Examen de Grado concluyó con éxito. Ya no puedes realizar más solicitudes de trámite.
+          Culminaste satisfactoriamente aprobando esta modalidad de titulación.
         </p>
       </div>
 
-      <div v-if="otroTramiteEnCurso" class="rounded-xl bg-orange-500/10 border border-orange-500/30 p-4 flex items-start gap-3 text-orange-200">
+      <div v-if="!examenAprobado && otroTramiteEnCurso" class="rounded-xl bg-orange-500/10 border border-orange-500/30 p-4 flex items-start gap-3 text-orange-200">
         <AppIcon name="alert-triangle" :size="20" class="mt-0.5 shrink-0" />
         <p class="text-sm font-medium">
           Tienes un trámite en curso de otra modalidad. Finalízalo antes de solicitar el Examen de Grado.
         </p>
       </div>
 
-      <div v-if="sinIntentos" class="rounded-xl bg-red-900/50 border border-red-500/30 p-4 flex items-start gap-3 text-red-400">
+      <div v-if="!examenAprobado && sinIntentos" class="rounded-xl bg-red-900/50 border border-red-500/30 p-4 flex items-start gap-3 text-red-400">
         <AppIcon name="x-circle" :size="20" class="mt-0.5 shrink-0" />
         <p class="text-sm font-medium">
           Agotaste los {{ maximo }} intentos permitidos. Debes optar por otra modalidad de titulación.
         </p>
       </div>
 
-      <div class="card overflow-hidden">
+      <div v-if="!examenAprobado" class="card overflow-hidden">
         <div class="h-2 bg-gradient-to-r from-amber-400 to-orange-500"></div>
         <div class="p-6 sm:p-8">
           <div class="flex flex-wrap items-center gap-4">
@@ -79,7 +79,7 @@
             <div>
               <h2 class="text-lg font-extrabold text-white">Solicitud de Examen de Grado</h2>
               <p class="text-sm text-slate-400">
-                Selecciona la modalidad y adjunta la solicitud y el certificado de conclusión en PDF.
+                Adjunta la nota de solicitud y el certificado de conclusión de estudios en PDF.
                 KARDEX verificará tus documentos, revisará tus intentos y registrará la Resolución del HCC.
               </p>
             </div>
@@ -106,20 +106,12 @@
 
           <div class="mt-7 space-y-4">
             <div class="rounded-xl bg-white/5 ring-1 ring-white/10 p-4">
-              <p class="text-xs uppercase tracking-wide text-slate-400 font-semibold">1. Modalidad</p>
-              <select v-model="modalidadElegida" class="input mt-2" :disabled="examenStore.enviando">
-                <option value="" disabled>Seleccione la modalidad deseada</option>
-                <option value="Examen de Grado">Examen de Grado</option>
-              </select>
-            </div>
-
-            <div v-if="modalidadSeleccionada" class="rounded-xl bg-white/5 ring-1 ring-white/10 p-4">
-              <p class="text-xs uppercase tracking-wide text-slate-400 font-semibold">2. Documentos en PDF</p>
+              <p class="text-xs uppercase tracking-wide text-slate-400 font-semibold">1. Documentos en PDF</p>
               <p class="text-xs text-slate-400 mt-1">
-                Adjunta la solicitud y el certificado de conclusión de estudios. KARDEX los verificará antes de revisar tus intentos.
+                Adjunta la nota de solicitud y el certificado de conclusión de estudios. KARDEX los verificará antes de revisar tus intentos.
               </p>
               <div class="mt-3 grid sm:grid-cols-2 gap-3">
-                <label v-for="doc in TIPOS_DOCUMENTO_EXAMEN" :key="doc.tipo" class="block">
+                <label v-for="doc in DOCUMENTOS_SOLICITUD" :key="doc.tipo" class="block">
                   <span class="label">{{ doc.etiqueta }} (PDF)</span>
                   <input
                     type="file"
@@ -139,7 +131,7 @@
           <form class="mt-7 flex flex-wrap items-center justify-between gap-3" @submit.prevent="enviarSolicitud">
             <p class="text-xs text-slate-400 inline-flex items-center gap-1.5">
               <AppIcon name="info" :size="14" />
-              {{ documentosCompletos ? 'Al enviar, tu trámite queda pendiente de la verificación de KARDEX.' : 'Seleccione la modalidad y adjunte ambos PDF para continuar.' }}
+              {{ documentosCompletos ? 'Al enviar, tu trámite queda pendiente de la verificación de KARDEX.' : 'Adjunte ambos PDF para continuar.' }}
             </p>
             <button
               type="submit"
@@ -166,6 +158,7 @@
 //   - Con solicitud activa: se reutiliza el seguimiento del portal del
 //     estudiante (avance, intentos y última actualización).
 import { ref, computed, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { ESTADOS_TERMINALES, useTramitesStore } from '@/modules/tramites';
 import { useEstudianteStore } from '@/modules/estudiantes';
 import { useToastStore } from '@/core/stores/toast';
@@ -185,11 +178,15 @@ const tramitesStore = useTramitesStore();
 const estudianteStore = useEstudianteStore();
 const examenStore = useExamenStore();
 const toastStore = useToastStore();
+const router = useRouter();
 
 const cargando = ref(true);
 const maximo = MAXIMO_INTENTOS;
-const modalidadElegida = ref('');
 const documentos = ref({ solicitud_examen: null, certificado_conclusion: null });
+const DOCUMENTOS_SOLICITUD = TIPOS_DOCUMENTO_EXAMEN.map((doc) => ({
+  ...doc,
+  etiqueta: doc.tipo === 'solicitud_examen' ? 'Nota de solicitud' : doc.etiqueta,
+}));
 
 const FASES_EXAMEN = [
   { id: 'documentos', label: 'Verificación documental', icon: 'file-text' },
@@ -201,6 +198,9 @@ const FASES_EXAMEN = [
 
 const tramite = computed(() => tramitesStore.tramiteActivo);
 const esExamen = computed(() => esFlujoExamen(tramite.value));
+const examenAprobado = computed(() =>
+  esExamen.value && ['aprobado', 'titulado'].includes(tramite.value?.estado_actual),
+);
 const terminal = computed(() => esExamen.value && ESTADOS_TERMINALES.includes(tramite.value?.estado_actual));
 const examenEnCurso = computed(() => esExamen.value && !terminal.value);
 const otroTramiteEnCurso = computed(
@@ -209,15 +209,13 @@ const otroTramiteEnCurso = computed(
 const usados = computed(() => intentosUsados(tramite.value));
 const restantes = computed(() => intentosRestantes(tramite.value));
 const sinIntentos = computed(() => esExamen.value && restantes.value === 0);
-const modalidadSeleccionada = computed(() => modalidadElegida.value === 'Examen de Grado');
-const documentosCompletos = computed(() => TIPOS_DOCUMENTO_EXAMEN.every(({ tipo }) => Boolean(documentos.value[tipo])));
+const documentosCompletos = computed(() => DOCUMENTOS_SOLICITUD.every(({ tipo }) => Boolean(documentos.value[tipo])));
 const puedeSolicitar = computed(
   () => !examenEnCurso.value
+    && !examenAprobado.value
     && !otroTramiteEnCurso.value
     && !sinIntentos.value
-    && modalidadSeleccionada.value
-    && documentosCompletos.value
-    && !(esExamen.value && tramite.value?.estado_actual === 'titulado'),
+    && documentosCompletos.value,
 );
 
 /** Detalle legible de un fallo HTTP para el toast de error. */
@@ -235,7 +233,7 @@ async function enviarSolicitud() {
   if (!puedeSolicitar.value) return;
 
   const formData = new FormData();
-  TIPOS_DOCUMENTO_EXAMEN.forEach(({ tipo }, index) => {
+  DOCUMENTOS_SOLICITUD.forEach(({ tipo }, index) => {
     formData.append(`documentos[${index}][archivo]`, documentos.value[tipo]);
     formData.append(`documentos[${index}][tipo]`, tipo);
   });
@@ -244,8 +242,8 @@ async function enviarSolicitud() {
     await examenStore.crearSolicitud(formData);
     toastStore.success('Solicitud enviada. KARDEX verificará tus documentos y tus intentos.');
     documentos.value = { solicitud_examen: null, certificado_conclusion: null };
-    modalidadElegida.value = '';
     await tramitesStore.cargarTramiteActivo();
+    await router.push({ name: 'EstudianteDashboard' });
   } catch (error) {
     toastStore.error('Error al enviar: ' + detalleDeError(error, 'Verifique los datos'));
   }

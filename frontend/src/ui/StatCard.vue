@@ -3,9 +3,9 @@
     <div class="absolute -top-10 -right-10 w-32 h-32 rounded-full blur-2xl opacity-20" :class="blobTone"></div>
     <div class="relative flex items-start justify-between gap-4">
       <div>
-        <p class="text-sm font-semibold text-slate-400">{{ label }}</p>
-        <p class="mt-1 text-3xl font-bold text-white leading-none">{{ value }}</p>
-        <p v-if="sublabel" class="mt-2 text-xs text-slate-400">{{ sublabel }}</p>
+        <p class="font-semibold text-slate-400" :class="tamanoLabel">{{ label }}</p>
+        <p class="mt-1 font-bold text-white leading-none" :class="tamanoValor">{{ value }}</p>
+        <p v-if="sublabel" class="mt-2 text-slate-400" :class="tamanoSublabel">{{ sublabel }}</p>
       </div>
       <div class="w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg shrink-0" :class="iconTone">
         <AppIcon :name="icon" :size="24" />
@@ -27,7 +27,12 @@ const props = defineProps({
   sublabel: { type: String, default: '' },
   icon: { type: String, default: 'chart' },
   tone: { type: String, default: 'indigo' }, // Clave en `tones`.
+  compact: { type: Boolean, default: false },
 });
+
+const tamanoLabel = computed(() => (props.compact ? 'text-xs' : 'text-sm'));
+const tamanoValor = computed(() => (props.compact ? 'text-lg' : 'text-3xl'));
+const tamanoSublabel = computed(() => (props.compact ? 'text-[10px]' : 'text-xs'));
 
 // Catálogo de tonos: clases del icono (degradado) y del "blob" decorativo.
 const tones = {

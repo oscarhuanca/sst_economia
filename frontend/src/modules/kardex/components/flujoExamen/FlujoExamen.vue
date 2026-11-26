@@ -109,7 +109,7 @@
       </div>
     </div>
 
-    <!-- 8 módulos del flujo, cada uno bloqueado hasta cerrar el anterior -->
+    <!-- 7 módulos del flujo, cada uno bloqueado hasta cerrar el anterior -->
     <div ref="contenedorModulos" class="grid lg:grid-cols-2 gap-4">
       <template v-for="(m, i) in modulos" :key="m.id">
         <div :id="`modulo-${m.id}`">
@@ -186,17 +186,12 @@
           :sorteo-especialidad="registroDe('sorteo_especialidad')"
           @guardar="(datos) => guardar(m.id, datos)"
         />
-        <ModuloReporteExamen
-          v-else
-          :completado="m.completado"
-          :en-progreso="i === proximoPendiente"
-          :bloqueado="bloqueado(i)"
-          :cargando="i === proximoPendiente && guardando"
-          :tramite="tramite"
-          @guardar="(datos) => guardar(m.id, datos)"
-        />
         </div>
       </template>
+    </div>
+
+    <div class="mt-5 border-t border-white/10 pt-5 flex justify-end">
+      <ModuloReporteExamen :tramite="tramite" />
     </div>
   </div>
 </template>
@@ -206,6 +201,7 @@ import { computed, nextTick, ref } from 'vue';
 import { useKardexStore } from '../../stores/kardex';
 import {
   MAXIMO_INTENTOS,
+  MODULO_REPORTE,
   MODULOS_FLUJO_EXAMEN,
   esReabrible,
   intentosRestantes,
@@ -264,27 +260,30 @@ const intentosYaVerificados = computed(() =>
 );
 function siguientePendiente(tramite) {
   const pendiente = proximoModuloPendiente(tramite);
+  if (pendiente === -1 || MODULOS_FLUJO_EXAMEN[pendiente]?.id === MODULO_REPORTE) return -1;
   return ESTADOS_POST_VERIFICACION.includes(tramite?.estado_actual) && pendiente === 0 ? 1 : pendiente;
 }
 
 const proximoPendiente = computed(() => siguientePendiente(props.tramite));
 
 const modulos = computed(() =>
-  modulosExamen(props.tramite).map((m) => {
-    const verificado = m.id === 'verificacion_intentos' && intentosYaVerificados.value;
+  modulosExamen(props.tramite)
+    .filter((m) => m.id !== MODULO_REPORTE)
+    .map((m) => {
+      const verificado = m.id === 'verificacion_intentos' && intentosYaVerificados.value;
 
-    return {
-      ...m,
-      datos: props.tramite?.hitos?.modulos?.[m.id] || null,
-      registro: verificado && !m.registro
-        ? {
-            resultado: 'verificado',
-            observaciones: 'Intentos verificados. Continúe con la habilitación del estudiante.',
-          }
-        : m.registro,
-      completado: verificado ? true : m.completado,
-    };
-  }),
+      return {
+        ...m,
+        datos: props.tramite?.hitos?.modulos?.[m.id] || null,
+        registro: verificado && !m.registro
+          ? {
+              resultado: 'verificado',
+              observaciones: 'Intentos verificados. Continúe con la habilitación del estudiante.',
+            }
+          : m.registro,
+        completado: verificado ? true : m.completado,
+      };
+    }),
 );
 
 const progreso = computed(() =>
@@ -364,13 +363,8 @@ function esConservado(etapa) {
   return registroDe(etapa)?.conservado === true;
 }
 
-/**
- * Un módulo sólo se habilita cuando es el siguiente pendiente, salvo el Reporte
- * en un estado reprobado: ahí ninguna tarjeta avanza (primero se reabre el
- * examen), pero SÍ se emite el acta de resultados de la resolución en curso.
- */
 function bloqueado(indice) {
-  if (reabrible.value) return modulos.value[indice]?.id !== 'reporte';
+  if (reabrible.value) return true;
   return indice !== proximoPendiente.value;
 }
 
@@ -407,12 +401,7 @@ async function avanzar(moduloId, datos, actualizado, modulo) {
   }
 
   const indice = siguientePendiente(actualizado);
-  const siguiente = MODULOS_FLUJO_EXAMEN[indice];
-
-  if (moduloId === 'reporte' || actualizado?.estado_actual === 'titulado') {
-    toastStore.success('Reporte generado. El estudiante quedó titulado.');
-    return;
-  }
+  const siguiente = modulos.value[indice];
 
   if (moduloId === 'habilitacion_examen') {
     toastStore.success(
