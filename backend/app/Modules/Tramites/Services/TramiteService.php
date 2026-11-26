@@ -79,7 +79,7 @@ class TramiteService extends BasePaginadoService
     private const MODULOS_FLUJO_TITULACION = [
         'aprobacion_tema' => 'tema_aprobado',
         'tribunal_revisor' => 'tribunal_asignado',
-        'defensa' => 'defensa_aprobada',
+        'defensa' => 'titulado',
         'reporte' => 'titulado',
         'publicacion' => 'publicado',
     ];
@@ -796,7 +796,10 @@ class TramiteService extends BasePaginadoService
         $perfil = FlujoTitulacionModalidad::perfilDe($modalidad);
         $modulos = self::MODULOS_FLUJO_TITULACION;
 
-        if ($modalidad === FlujoTitulacionModalidad::MODALIDAD_TESIS) {
+        if (in_array($modalidad, [
+            FlujoTitulacionModalidad::MODALIDAD_TESIS,
+            FlujoTitulacionModalidad::MODALIDAD_TRABAJO_DIRIGIDO,
+        ], true)) {
             $modulos['defensa'] = 'titulado';
             unset($modulos['publicacion'], $modulos['reporte']);
         }

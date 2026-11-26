@@ -130,6 +130,13 @@
             @guardado="sincronizarEstado"
             @consultar-coincidencia="consultarCoincidencia"
           />
+          <div class="card p-5">
+            <ModuloReporte
+              :solo-boton="true"
+              :tramite="kardexStore.tramite"
+              :docentes="docentes"
+            />
+          </div>
         </template>
 
         <template v-else>
@@ -320,6 +327,7 @@ import { useToastStore } from '@/core/stores/toast';
 import AppIcon from '@/ui/AppIcon.vue';
 import EmptyState from '@/ui/EmptyState.vue';
 import FlujoTitulacion from '../components/flujo/FlujoTitulacion.vue';
+import ModuloReporte from '../components/flujo/ModuloReporte.vue';
 
 const kardexStore = useKardexStore();
 const toastStore = useToastStore();

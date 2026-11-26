@@ -194,7 +194,13 @@ export function esFlujoTitulacion(tramite) {
 
 /** Porcentaje de avance (0-100) según el estado actual del trámite. */
 export function pctTitulacion(tramite) {
-  return PCT_POR_ESTADO[tramite?.estado_actual] ?? 0;
+  const estado = tramite?.estado_actual;
+  if (estado === 'defensa_aprobada') {
+    const config = configDeTramite(tramite);
+    const defensa = config ? modulosDe(config).find((m) => m.id === 'defensa') : null;
+    if (defensa?.estado === 'titulado') return 100;
+  }
+  return PCT_POR_ESTADO[estado] ?? 0;
 }
 
 /** Estado objetivo de un módulo (interno). */
@@ -222,7 +228,7 @@ export function estadoBadgeTitulacion(tramite) {
   if (estado === 'pendiente_concejo_universitario') return estado;
   const config = configDeTramite(tramite);
   if (!config) return estado;
-  const pct = PCT_POR_ESTADO[estado] ?? 0;
+  const pct = pctTitulacion(tramite);
   let badge = 'solicitud_presentada';
   for (const m of modulosDe(config)) {
     if (pct >= m.pct) badge = m.estado;
@@ -435,7 +441,7 @@ function camposDeModulo(config, moduloId, datos, tramite) {
           valor: datos.resolucion_tutor?.nombre,
           ruta: datos.resolucion_tutor?.ruta || null,
         },
-        { etiqueta: 'Nota de Suficiencia del tutor', valor: datos.nota_suficiencia_tutor_numero },
+        ...(config.nombre !== 'Trabajo Dirigido' ? [{ etiqueta: 'Nota de Suficiencia del tutor', valor: datos.nota_suficiencia_tutor_numero }] : []),
         { etiqueta: 'Fecha de la nota de suficiencia', valor: fechaLegible(datos.fecha_nota_suficiencia) },
         {
           etiqueta: 'PDF de nota de suficiencia',
@@ -446,14 +452,6 @@ function camposDeModulo(config, moduloId, datos, tramite) {
 
     case 'tribunal_revisor':
       return filas([
-        ...(config.nombre !== 'Tesis de Grado'
-          ? [{
-            etiqueta: 'Nota de Suficiencia del tutor',
-            valor: datos.nota_suficiencia_tutor?.nombre
-              || (datos.nota_suficiencia_tutor_entregada ? 'Entregada' : null),
-            ruta: datos.nota_suficiencia_tutor?.ruta || null,
-          }]
-          : []),
         {
           etiqueta: 'Resolución de designación del tribunal revisor',
           valor: datos.resolucion_tribunal?.nombre
@@ -602,9 +600,11 @@ export function validarModulo(moduloId, datos = {}, modalidad = null) {
       }
       if (!val(datos.tutor_id)) errores.push('Seleccione el tutor asignado.');
       if (Number(datos.paso) === 3) {
-        const nota = Number(datos.nota_suficiencia_tutor_numero);
-        if (!val(datos.nota_suficiencia_tutor_numero) || Number.isNaN(nota) || nota < 0 || nota > 100) {
-          errores.push('Ingrese la nota de suficiencia del tutor (0 a 100).');
+        if (config.nombre !== 'Trabajo Dirigido') {
+          const nota = Number(datos.nota_suficiencia_tutor_numero);
+          if (!val(datos.nota_suficiencia_tutor_numero) || Number.isNaN(nota) || nota < 0 || nota > 100) {
+            errores.push('Ingrese la nota de suficiencia del tutor (0 a 100).');
+          }
         }
         if (!val(datos.fecha_nota_suficiencia)) {
           errores.push('Seleccione la fecha de la nota de suficiencia.');
@@ -620,9 +620,6 @@ export function validarModulo(moduloId, datos = {}, modalidad = null) {
       }
       break;
     case 'tribunal_revisor':
-      if (modalidad !== 'Tesis de Grado' && !datos.nota_suficiencia_tutor_entregada) {
-        errores.push('Confirme que el tutor entregó la Nota de Suficiencia.');
-      }
       if (!datos.resolucion_tribunal_entregada) {
         errores.push('Confirme que se cuenta con la Resolución de designación del tribunal revisor.');
       }

@@ -114,6 +114,7 @@
           :editando="editandoId === m.id"
           :datos="m.datos"
           :cargando="guardandoId === m.id"
+          :modalidad-nombre="config?.nombre || tramite?.modalidad?.nombre || ''"
           @guardar="(datos, archivos) => guardar(m.id, datos, archivos)"
         />
         <ModuloPublicacion
@@ -274,22 +275,25 @@ async function guardar(moduloId, datos, archivos = {}) {
       return;
     }
     const defensaPasoIntermedio = moduloId === 'defensa' && Number(datos.paso ?? 3) < 3;
+    const defensaFinalizada = moduloId === 'defensa' && !defensaPasoIntermedio && !defensaReprobada(datos);
     toastStore.success(
       defensaPasoIntermedio
         ? Number(datos.paso) === 2
           ? 'Empastados y CD registrados.'
-          : 'ResoluciÃ³n HCC registrada.'
+          : 'Resolución HCC registrada.'
+        : defensaFinalizada
+          ? `¡Felicidades! Usted concluyó con satisfacción la titulación en la modalidad ${config.value?.nombre || 'de titulación'}.`
         : moduloId === 'aprobacion_tema' && Number(datos.paso) === 2
-          ? 'DesignaciÃ³n del tutor registrada.'
+          ? 'Designación del tutor registrada.'
           : moduloId === 'aprobacion_tema' && Number(datos.paso) === 3
             ? 'Nota de suficiencia del tutor registrada.'
             : datos.accion === 'remitir'
-              ? 'DocumentaciÃ³n verificada y remitida al HCC.'
+              ? 'Documentación verificada y remitida al HCC.'
               : datos.accion === 'rechazar'
-                ? 'Perfil rechazado. Se notificÃ³ al estudiante para que presente otro perfil.'
+                ? 'Perfil rechazado. Se notificó al estudiante para que presente otro perfil.'
                 : editandoId.value === moduloId
-                  ? `Paso actualizado â€” ${modulo.badge}`
-                  : `Paso completado â€” ${modulo.badge}`,
+                  ? `Paso actualizado — ${modulo.badge}`
+                  : `Paso completado — ${modulo.badge}`,
     );
     if (!defensaPasoIntermedio) editandoId.value = null;
     emit('guardado', actualizado);

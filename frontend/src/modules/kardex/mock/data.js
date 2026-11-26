@@ -752,15 +752,15 @@ export function asignarTutorMock(tramite, idTutor) {
 }
 
 // Estado objetivo de cada módulo del flujo de titulación (espejo del backend).
-const ESTADOS_MODULOS = {
-  perfil_tesis: 'pendiente_concejo_universitario',
-  perfil_proyecto: 'pendiente_concejo_universitario',
-  aprobacion_tema: 'tema_aprobado',
-  tribunal_revisor: 'tribunal_asignado',
-  defensa: 'defensa_aprobada',
-  reporte: 'titulado',
-  publicacion: 'publicado',
-};
+  const ESTADOS_MODULOS = {
+    perfil_tesis: 'pendiente_concejo_universitario',
+    perfil_proyecto: 'pendiente_concejo_universitario',
+    aprobacion_tema: 'tema_aprobado',
+    tribunal_revisor: 'tribunal_asignado',
+    defensa: 'titulado',
+    reporte: 'titulado',
+    publicacion: 'publicado',
+  };
 
 // Estado heredado al que pasaba el trámite cuando KARDEX rechazaba el perfil.
 // El módulo 1 ya no genera rechazos: solo verifica y remite al HCC.

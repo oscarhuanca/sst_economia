@@ -93,7 +93,7 @@
       </section>
 
       <section
-        v-if="datos.nota_suficiencia_tutor_numero != null || datos.fecha_nota_suficiencia || datos.nota_suficiencia_tutor?.nombre"
+        v-if="mostrarNotaNumerica ? datos.nota_suficiencia_tutor_numero != null : false || datos.fecha_nota_suficiencia || datos.nota_suficiencia_tutor?.nombre"
         class="space-y-3 pt-4 border-t border-white/10"
       >
         <h5 class="text-xs font-bold uppercase tracking-wider text-orange-300 flex items-center gap-1.5">
@@ -101,7 +101,7 @@
           2.3 Nota de suficiencia del tutor
         </h5>
         <dl class="grid sm:grid-cols-2 gap-2.5">
-          <div class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
+          <div v-if="mostrarNotaNumerica" class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
             <dt class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Nota de Suficiencia</dt>
             <dd class="text-sm font-semibold text-white mt-0.5">{{ datos.nota_suficiencia_tutor_numero ?? '—' }}</dd>
           </div>
@@ -371,7 +371,7 @@
         <h5 class="text-sm font-bold uppercase text-white">2.3 Nota de suficiencia del tutor</h5>
       </div>
 
-      <div>
+      <div v-if="mostrarNotaNumerica">
         <label class="label" for="tutor-nota-suficiencia">Nota de Suficiencia</label>
         <input
           id="tutor-nota-suficiencia"
@@ -384,7 +384,7 @@
           placeholder="Ej: 85"
         />
       </div>
-      <div>
+      <div :class="mostrarNotaNumerica ? '' : 'sm:col-span-2'">
         <label class="label" for="tutor-nota-suficiencia-fecha">Fecha de la Nota</label>
         <input
           id="tutor-nota-suficiencia-fecha"
@@ -501,6 +501,8 @@ const archivoResolucionTema = ref(null);
 const archivoNotaSuficiencia = ref(null);
 
 const hoyISO = computed(() => new Date().toISOString().slice(0, 10));
+const esTrabajoDirigido = computed(() => props.tramite?.modalidad?.nombre === 'Trabajo Dirigido');
+const mostrarNotaNumerica = computed(() => !esTrabajoDirigido.value);
 const tutorElegido = computed(() => props.docentes.find((d) => d.id_docente === Number(form.tutor_id)));
 const debeAprobarPerfil = computed(
   () => props.tramite?.estado_actual === 'pendiente_concejo_universitario' && !props.completado,
@@ -593,7 +595,7 @@ function obtenerDatos() {
     fecha_resolucion: form.fecha_resolucion,
     numero_resolucion_tutor: prefijarNumeroResolucion(form.numero_resolucion_tutor),
     fecha_resolucion_tutor: form.fecha_resolucion_tutor,
-    nota_suficiencia_tutor_numero: form.nota_suficiencia_tutor_numero,
+    nota_suficiencia_tutor_numero: mostrarNotaNumerica.value ? form.nota_suficiencia_tutor_numero : null,
     fecha_nota_suficiencia: form.fecha_nota_suficiencia,
     tema_investigacion: form.tema_investigacion.trim(),
     tutor_id: form.tutor_id,

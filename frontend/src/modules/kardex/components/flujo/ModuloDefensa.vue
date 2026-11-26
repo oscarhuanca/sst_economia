@@ -82,6 +82,17 @@
           reglamentarios.
         </p>
       </div>
+
+      <div
+        v-else
+        class="flex items-start gap-2.5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3.5 py-3"
+      >
+        <AppIcon name="check-circle" :size="16" class="shrink-0 mt-0.5 text-emerald-300" />
+        <p class="text-sm text-emerald-100 leading-relaxed">
+          <strong>¡Felicidades!</strong> Usted concluyó con satisfacción la titulación en la modalidad
+          <strong>{{ modalidadNombre || 'de titulación' }}</strong>.
+        </p>
+      </div>
     </div>
 
     <div v-else-if="bloqueado && !editando">
@@ -356,6 +367,13 @@
           </span>
         </label>
 
+        <p
+          v-if="!hayReprobada && form.nota_final !== '' && form.nota_final !== null"
+          class="text-sm text-emerald-200 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-3"
+        >
+          Al guardar y finalizar, el proceso de titulación del postulante quedará concluido.
+        </p>
+
         <div class="flex justify-end">
           <button type="submit" class="btn-warm px-6" :disabled="cargando || (hayReprobada && !confirmoReprobado)">
             <AppIcon v-if="cargando" name="loader" :size="18" class="animate-spin" />
@@ -383,6 +401,7 @@ const props = defineProps({
   editando: { type: Boolean, default: false },
   datos: { type: Object, default: null },
   cargando: { type: Boolean, default: false },
+  modalidadNombre: { type: String, default: '' },
 });
 
 const emit = defineEmits(['guardar']);

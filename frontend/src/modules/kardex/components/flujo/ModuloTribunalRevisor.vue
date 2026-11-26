@@ -567,7 +567,7 @@ function confirmado(valor) {
   return valor === true || valor === 1 || valor === '1';
 }
 
-const esTesis = computed(() => props.config?.nombre === 'Tesis de Grado');
+const esTesis = computed(() => ['Tesis de Grado', 'Trabajo Dirigido'].includes(props.config?.nombre));
 
 function etiquetaRol(rol) {
   return ETIQUETAS_ROL_TRIBUNAL[rol] || (rol ? rol.charAt(0).toUpperCase() + rol.slice(1) : '');

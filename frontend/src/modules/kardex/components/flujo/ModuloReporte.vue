@@ -355,10 +355,11 @@ const etapasProceso = computed(() => {
 
   const notaSuficiencia = aprobacionTema.value.nota_suficiencia_tutor_numero;
   const notaSuficienciaPdf = aprobacionTema.value.nota_suficiencia_tutor?.nombre;
+  const tieneNotaSuficiencia = notaSuficiencia != null || notaSuficienciaPdf || aprobacionTema.value.fecha_nota_suficiencia;
   etapas.push({
     etapa: 'Nota de suficiencia del tutor',
     subetapa: '2.3 Nota de suficiencia del tutor',
-    estado: notaSuficiencia != null ? 'COMPLETADO' : 'PENDIENTE',
+    estado: tieneNotaSuficiencia ? 'COMPLETADO' : 'PENDIENTE',
     fecha: fechaLegible(aprobacionTema.value.fecha_nota_suficiencia) || '—',
     detalle: [
       notaSuficiencia != null ? `Nota ${notaSuficiencia}` : null,
