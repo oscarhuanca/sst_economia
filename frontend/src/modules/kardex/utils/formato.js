@@ -26,3 +26,13 @@ export function iniciales(p) {
   const b = String(p?.apellidos || '').trim();
   return `${a.charAt(0) || ''}${b.charAt(0) || ''}`.toUpperCase() || '?';
 }
+
+export function prefijarNumeroResolucion(valor) {
+  const texto = String(valor ?? '').trim();
+
+  if (!texto) return '';
+  if (/^hcc-/i.test(texto)) return `HCC-${texto.slice(4).trim()}`;
+  if (/^h(?:c(?:c)?)?$/i.test(texto)) return texto;
+
+  return `HCC-${texto}`;
+}

@@ -149,6 +149,20 @@ class ExcelenciaAcademicaFlujoTest extends TestCase
         $this->assertTrue($tramite->hitos['modulos']['designacion_tribunal']['verificado']);
     }
 
+    public function test_el_guardado_de_un_modulo_conserva_los_documentos_de_la_solicitud(): void
+    {
+        $tramite = $this->crearTramiteExcelencia(conDocumentos: true);
+        $kardex = $this->crearUsuarioGestion();
+
+        $respuesta = $this->designar($kardex, $tramite)->assertCreated();
+
+        $this->assertCount(3, $respuesta->json('documentos'));
+        $this->assertSame(
+            ['certificado_calificaciones', 'nota_solicitud', 'record_academico'],
+            collect($respuesta->json('documentos'))->pluck('tipo_documento')->sort()->values()->all()
+        );
+    }
+
     public function test_el_informe_registra_los_dos_tribunales_y_avanza(): void
     {
         $tramite = $this->crearTramiteExcelencia();
@@ -260,8 +274,14 @@ class ExcelenciaAcademicaFlujoTest extends TestCase
 
         $this->actingAs($kardex)
             ->post("/api/tramites/{$tramite->id_tramite}/excelencia/resolucion_hcc", [
-                'datos' => $this->datosResolucion(),
-                'informe_lectura_acta' => UploadedFile::fake()->create('lectura-acta.pdf', 80, 'application/pdf'),
+                'datos' => $this->datosCalificacion(),
+            ])
+            ->assertCreated();
+
+        $this->actingAs($kardex)
+            ->post("/api/tramites/{$tramite->id_tramite}/excelencia/acta_lectura", [
+                'datos' => $this->datosActa(),
+                'informe_lectura_acta' => UploadedFile::fake()->create('lectura_acta.pdf', 120, 'application/pdf'),
             ])
             ->assertCreated();
 
@@ -276,8 +296,8 @@ class ExcelenciaAcademicaFlujoTest extends TestCase
             $tramite->hitos['modulos']['informe_tribunal']['informe_evaluacion_tribunal']['nombre']
         );
         $this->assertSame(
-            'lectura-acta.pdf',
-            $tramite->hitos['modulos']['resolucion_hcc']['informe_lectura_acta']['nombre']
+            'lectura_acta.pdf',
+            $tramite->hitos['modulos']['acta_lectura']['informe_lectura_acta']['nombre']
         );
     }
 
@@ -309,7 +329,7 @@ class ExcelenciaAcademicaFlujoTest extends TestCase
         $this->assertSame('tribunal_designado', $tramite->refresh()->estado_actual);
     }
 
-    public function test_la_resolucion_exige_fecha_de_lectura_y_confirmacion(): void
+    public function test_la_calificacion_exige_las_tres_areas_y_confirmacion(): void
     {
         $tramite = $this->crearTramiteExcelencia();
         $kardex = $this->crearUsuarioGestion();
@@ -318,8 +338,7 @@ class ExcelenciaAcademicaFlujoTest extends TestCase
         $this->informar($kardex, $tramite)->assertCreated();
 
         $this->modulo($kardex, $tramite, 'resolucion_hcc', [
-            'numero_resolucion' => 'HCC-0412/2026',
-            'fecha_resolucion' => '2026-09-01',
+            'calificacion_cuantitativa' => 90,
         ])
             ->assertStatus(422)
             ->assertJsonValidationErrors('datos');
@@ -327,7 +346,7 @@ class ExcelenciaAcademicaFlujoTest extends TestCase
         $this->assertSame('informe_tribunal_registrado', $tramite->refresh()->estado_actual);
     }
 
-    public function test_la_resolucion_del_hcc_exige_numero_y_fecha(): void
+    public function test_la_calificacion_rechaza_notas_fuera_de_rango(): void
     {
         $tramite = $this->crearTramiteExcelencia();
         $kardex = $this->crearUsuarioGestion();
@@ -335,11 +354,34 @@ class ExcelenciaAcademicaFlujoTest extends TestCase
         $this->designar($kardex, $tramite)->assertCreated();
         $this->informar($kardex, $tramite)->assertCreated();
 
-        $this->modulo($kardex, $tramite, 'resolucion_hcc', ['fecha_resolucion' => '2026-09-01'])
+        $datos = $this->datosCalificacion();
+        $datos['calificacion_cuantitativa'] = 150;
+
+        $this->modulo($kardex, $tramite, 'resolucion_hcc', $datos)
             ->assertStatus(422)
             ->assertJsonValidationErrors('datos');
 
         $this->assertSame('informe_tribunal_registrado', $tramite->refresh()->estado_actual);
+    }
+
+    public function test_la_calificacion_final_se_calcula_con_los_pesos_de_cada_area(): void
+    {
+        $tramite = $this->crearTramiteExcelencia();
+        $kardex = $this->crearUsuarioGestion();
+
+        $this->designar($kardex, $tramite)->assertCreated();
+        $this->informar($kardex, $tramite)->assertCreated();
+
+        $respuesta = $this->modulo($kardex, $tramite, 'resolucion_hcc', [
+            'calificacion_cuantitativa' => 85.5,
+            'calificacion_teoria_economica' => 92,
+            'calificacion_materias_complementarias' => 78,
+            'calificacion_final' => 0,
+            'confirmado' => true,
+        ])->assertCreated();
+
+        $this->assertSame(86.6, (float) $respuesta->json('hitos.modulos.resolucion_hcc.calificacion_final'));
+        $this->assertSame(86.6, (float) $tramite->refresh()->hitos['modulos']['resolucion_hcc']['calificacion_final']);
     }
 
     public function test_el_flujo_completo_llega_a_titulado_y_cierra_el_tramite(): void
@@ -349,14 +391,27 @@ class ExcelenciaAcademicaFlujoTest extends TestCase
 
         $this->designar($kardex, $tramite)->assertCreated();
         $this->informar($kardex, $tramite)->assertCreated();
-        $this->modulo($kardex, $tramite, 'resolucion_hcc', $this->datosResolucion())->assertCreated();
+        $this->modulo($kardex, $tramite, 'resolucion_hcc', $this->datosCalificacion())->assertCreated();
 
         $tramite->refresh();
 
         $this->assertSame('resolucion_hcc_registrada', $tramite->estado_actual);
-        $this->assertSame('HCC-0412/2026', $tramite->hitos['modulos']['resolucion_hcc']['numero_resolucion']);
-        $this->assertSame('2026-09-15', $tramite->hitos['modulos']['resolucion_hcc']['fecha_lectura_acta']);
+        $this->assertSame(90.0, (float) $tramite->hitos['modulos']['resolucion_hcc']['calificacion_cuantitativa']);
+        $this->assertSame(85.0, (float) $tramite->hitos['modulos']['resolucion_hcc']['calificacion_teoria_economica']);
+        $this->assertSame(80.0, (float) $tramite->hitos['modulos']['resolucion_hcc']['calificacion_materias_complementarias']);
+        $this->assertSame(86.0, (float) $tramite->hitos['modulos']['resolucion_hcc']['calificacion_final']);
         $this->assertTrue($tramite->hitos['modulos']['resolucion_hcc']['confirmado']);
+
+        $this->modulo($kardex, $tramite, 'reporte', [])->assertStatus(422);
+        $this->assertSame('resolucion_hcc_registrada', $tramite->refresh()->estado_actual);
+
+        $this->lectura($kardex, $tramite)->assertCreated();
+
+        $tramite->refresh();
+
+        $this->assertSame('acta_lectura_registrada', $tramite->estado_actual);
+        $this->assertSame('2026-10-15', $tramite->hitos['modulos']['acta_lectura']['fecha_lectura']);
+        $this->assertTrue($tramite->hitos['modulos']['acta_lectura']['verificado']);
 
         $this->modulo($kardex, $tramite, 'reporte', [])->assertCreated();
 
@@ -370,24 +425,57 @@ class ExcelenciaAcademicaFlujoTest extends TestCase
             ->assertJsonValidationErrors('datos');
     }
 
-    public function test_el_acta_exige_la_designacion_y_el_informe_previos(): void
+    public function test_el_acta_exige_calificacion_y_confirmacion(): void
     {
         $tramite = $this->crearTramiteExcelencia();
         $kardex = $this->crearUsuarioGestion();
 
-        $this->modulo($kardex, $tramite, 'reporte', [])
+        $this->modulo($kardex, $tramite, 'acta_lectura', $this->datosActa())
             ->assertStatus(422)
             ->assertJsonValidationErrors('datos');
 
         $this->assertSame('solicitud_presentada', $tramite->refresh()->estado_actual);
 
         $this->designar($kardex, $tramite)->assertCreated();
+        $this->informar($kardex, $tramite)->assertCreated();
+
+        $this->modulo($kardex, $tramite, 'acta_lectura', $this->datosActa())
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('datos');
+
+        $this->assertSame('informe_tribunal_registrado', $tramite->refresh()->estado_actual);
+    }
+
+    public function test_el_reporte_exige_la_lectura_del_acta(): void
+    {
+        $tramite = $this->crearTramiteExcelencia();
+        $kardex = $this->crearUsuarioGestion();
+
+        $this->designar($kardex, $tramite)->assertCreated();
+        $this->informar($kardex, $tramite)->assertCreated();
+        $this->modulo($kardex, $tramite, 'resolucion_hcc', $this->datosCalificacion())->assertCreated();
 
         $this->modulo($kardex, $tramite, 'reporte', [])
             ->assertStatus(422)
             ->assertJsonValidationErrors('datos');
 
-        $this->assertSame('tribunal_designado', $tramite->refresh()->estado_actual);
+        $this->assertSame('resolucion_hcc_registrada', $tramite->refresh()->estado_actual);
+    }
+
+    public function test_la_lectura_del_acta_exige_fecha_y_confirmacion(): void
+    {
+        $tramite = $this->crearTramiteExcelencia();
+        $kardex = $this->crearUsuarioGestion();
+
+        $this->designar($kardex, $tramite)->assertCreated();
+        $this->informar($kardex, $tramite)->assertCreated();
+        $this->modulo($kardex, $tramite, 'resolucion_hcc', $this->datosCalificacion())->assertCreated();
+
+        $this->modulo($kardex, $tramite, 'acta_lectura', ['fecha_lectura' => '2026-10-15'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('datos');
+
+        $this->assertSame('resolucion_hcc_registrada', $tramite->refresh()->estado_actual);
     }
 
     public function test_el_flujo_de_excelencia_no_se_registra_en_otras_modalidades(): void
@@ -463,6 +551,11 @@ class ExcelenciaAcademicaFlujoTest extends TestCase
         return $this->modulo($kardex, $tramite, 'informe_tribunal', $this->datosInforme($docentes));
     }
 
+    private function lectura(User $kardex, Tramite $tramite)
+    {
+        return $this->modulo($kardex, $tramite, 'acta_lectura', $this->datosActa());
+    }
+
     /** @return array<string, mixed> */
     private function datosDesignacion(): array
     {
@@ -493,12 +586,21 @@ class ExcelenciaAcademicaFlujoTest extends TestCase
     }
 
     /** @return array<string, mixed> */
-    private function datosResolucion(): array
+    private function datosCalificacion(): array
     {
         return [
-            'numero_resolucion' => 'HCC-0412/2026',
-            'fecha_resolucion' => '2026-09-01',
-            'fecha_lectura_acta' => '2026-09-15',
+            'calificacion_cuantitativa' => 90,
+            'calificacion_teoria_economica' => 85,
+            'calificacion_materias_complementarias' => 80,
+            'confirmado' => true,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function datosActa(): array
+    {
+        return [
+            'fecha_lectura' => '2026-10-15',
             'confirmado' => true,
         ];
     }

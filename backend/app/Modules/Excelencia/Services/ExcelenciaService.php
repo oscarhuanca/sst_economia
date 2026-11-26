@@ -23,9 +23,11 @@ use Illuminate\Validation\ValidationException;
  * El estudiante presenta su solicitud adjuntando la nota, el certificado de
  * calificaciones y el récord académico en PDF. KARDEX recepciona los documentos
  * y, desde el panel de Excelencia, registra la designación del tribunal, su
- * informe de evaluación, la lectura del acta y, por último, emite el acta.
+ * informe de evaluación, la calificación por áreas, la generación y lectura del
+ * acta y, por último, el reporte final que titula al estudiante.
  *
- * Son CUATRO módulos gestionados uno a uno desde el panel de KARDEX:
+ * Son CINCO módulos gestionados uno a uno desde el panel de KARDEX:
+
  *
  *  1. `designacion_tribunal` — registra el número y la fecha de la Resolución
  *     del HCC que designa al Tribunal de Evaluación y su PDF opcional; avanza a
@@ -33,15 +35,17 @@ use Illuminate\Validation\ValidationException;
  *  2. `informe_tribunal` — registra el Informe de Evaluación con el Tribunal 1
  *     y el Tribunal 2 elegidos del catálogo de docentes, y su PDF opcional;
  *     avanza a `informe_tribunal_registrado`.
- *  3. `resolucion_hcc` — registra la Resolución del HCC de lectura del acta, la
- *     fecha de lectura ante los tribunales y el PDF opcional del informe;
- *     avanza a `resolucion_hcc_registrada`.
- *  4. `reporte` — genera el acta de Excelencia Académica y titula al
- *     estudiante (`titulado`).
+ *  3. `resolucion_hcc` — registra las calificaciones por área y la calificación
+ *     final ponderada; avanza a `resolucion_hcc_registrada`.
+ *  4. `acta_lectura` — genera el acta y registra la fecha de lectura; avanza a
+ *     `acta_lectura_registrada`.
+ *  5. `reporte` — genera el reporte final y titula al estudiante (`titulado`).
+
  *
- * El detalle de cada módulo (resoluciones con sus fechas, tribunales, fecha de
- * lectura del acta e informes adjuntos) se conserva en `hitos.modulos`, que es
+ * El detalle de cada módulo (resoluciones con sus fechas, tribunales,
+ * calificaciones e informes adjuntos) se conserva en `hitos.modulos`, que es
  * lo que consultan el seguimiento del estudiante y el acta de titulación.
+
  */
 class ExcelenciaService
 {
@@ -71,14 +75,32 @@ class ExcelenciaService
     public const MODULO_INFORME = 'informe_tribunal';
 
     /**
-     * Módulo de registro de la Resolución del HCC.
+     * Módulo de registro de la calificación por áreas.
      */
     public const MODULO_RESOLUCION = 'resolucion_hcc';
 
     /**
-     * Módulo del reporte final (acta de titulación).
+     * Áreas evaluadas y peso de cada una en la calificación final.
+     *
+     * @var array<string, array{etiqueta: string, peso: float}>
+     */
+    private const AREAS_CALIFICACION = [
+        'calificacion_cuantitativa' => ['etiqueta' => 'Área Cuantitativa', 'peso' => 0.40],
+        'calificacion_teoria_economica' => ['etiqueta' => 'Área de Teoría Económica', 'peso' => 0.40],
+        'calificacion_materias_complementarias' => ['etiqueta' => 'Área de materias complementarias', 'peso' => 0.20],
+    ];
+
+
+    /**
+     * Módulo de generación del acta y registro de su fecha de lectura.
+     */
+    public const MODULO_ACTA = 'acta_lectura';
+
+    /**
+     * Módulo del reporte final (reporte de titulación).
      */
     public const MODULO_REPORTE = 'reporte';
+
 
     /** Resultados permitidos para el Informe de Evaluación del Tribunal. */
     public const RESULTADOS_EVALUACION = [
@@ -108,7 +130,9 @@ class ExcelenciaService
         self::MODULO_DESIGNACION => 'tribunal_designado',
         self::MODULO_INFORME => 'informe_tribunal_registrado',
         self::MODULO_RESOLUCION => 'resolucion_hcc_registrada',
+        self::MODULO_ACTA => 'acta_lectura_registrada',
         self::MODULO_REPORTE => 'titulado',
+
     ];
 
     /**
@@ -365,7 +389,9 @@ class ExcelenciaService
             self::MODULO_DESIGNACION => $this->destinoDesignacion($datos),
             self::MODULO_INFORME => $this->destinoInforme($datos),
             self::MODULO_RESOLUCION => $this->destinoResolucion($datos),
+            self::MODULO_ACTA => $this->destinoActa($tramite, $datos),
             self::MODULO_REPORTE => $this->destinoReporte($tramite),
+
         };
 
         $this->transicionar($tramite, $destino['estado'], $destino['observacion'], $actor);
@@ -506,14 +532,14 @@ class ExcelenciaService
     }
 
     /**
-     * Módulo 3 — Resolución del HCC y lectura del acta ante los tribunales.
+     * Módulo 3 — Calificación por áreas del postulante.
      *
-     * Registra la Resolución que fija la lectura del acta, su fecha y la fecha
-     * en que se realizó la lectura ante los tribunales. KARDEX confirma
-     * expresamente la revisión de estos datos y del informe PDF opcional.
+     * KARDEX registra una nota por área y el servicio recalcula siempre la
+     * calificación final con los pesos 40% / 40% / 20%, sin confiar en el valor
+     * enviado por el formulario.
      *
      * @param  array<string, mixed>  $datos
-     * @return array{estado:string, observacion:string}
+     * @return array{estado:string, observacion:string, calificacion_final:float}
      *
      * @throws ValidationException
      */
@@ -521,40 +547,78 @@ class ExcelenciaService
     {
         $errores = [];
 
-        if (! $this->informado($datos['numero_resolucion'] ?? null)) {
-            $errores[] = 'Ingrese el número de Resolución del HCC.';
+        foreach (self::AREAS_CALIFICACION as $campo => $area) {
+            $valor = $datos[$campo] ?? null;
+
+            if (! is_numeric($valor)) {
+                $errores[] = "Ingrese la calificación de {$area['etiqueta']}.";
+            } elseif ((float) $valor < 0 || (float) $valor > 100) {
+                $errores[] = "La calificación de {$area['etiqueta']} debe estar entre 0 y 100.";
+            }
         }
-        if (! $this->informado($datos['fecha_resolucion'] ?? null)) {
-            $errores[] = 'Seleccione la fecha de la Resolución.';
-        }
-        if (! $this->informado($datos['fecha_lectura_acta'] ?? null)) {
-            $errores[] = 'Seleccione la fecha de lectura del acta.';
-        }
+
         if (! $this->confirmado($datos['confirmado'] ?? null)) {
-            $errores[] = 'Marque la verificación de la Resolución y de la lectura del acta.';
+            $errores[] = 'Marque la verificación de las calificaciones.';
         }
 
         if ($errores !== []) {
             throw ValidationException::withMessages(['datos' => $errores]);
         }
 
-        $resolucion = trim((string) $datos['numero_resolucion']);
-        $lectura = trim((string) $datos['fecha_lectura_acta']);
+        $final = $this->calificacionFinal($datos);
 
         return [
             'estado' => 'resolucion_hcc_registrada',
-            'observacion' => "Resolución N.º {$resolucion} del HCC registrada. "
-                ."Lectura del acta ante los tres tribunales programada para el {$lectura}.",
+            'calificacion_final' => $final,
+            'observacion' => 'Calificación registrada. '
+                .'Calificación final: '.number_format($final, 2, '.', '').'.',
+        ];
+    }
+
+
+    /**
+     * Módulo 4 — generación del acta y registro de la fecha de lectura.
+     *
+     * @param  array<string, mixed>  $datos
+     * @return array{estado:string, observacion:string}
+     *
+     * @throws ValidationException
+     */
+    private function destinoActa(Tramite $tramite, array $datos): array
+    {
+        $errores = [];
+
+        if (! $this->informado($datos['fecha_lectura'] ?? null)) {
+            $errores[] = 'Seleccione la fecha de lectura del acta.';
+        }
+        if (! $this->confirmado($datos['confirmado'] ?? null)) {
+            $errores[] = 'Marque la verificación de la generación y lectura del acta.';
+        }
+
+        $modulos = $tramite->hitos['modulos'] ?? [];
+        $resolucion = $modulos[self::MODULO_RESOLUCION] ?? [];
+
+        if (! is_numeric($resolucion['calificacion_final'] ?? null)) {
+            $errores[] = 'Registre la calificación antes de generar el acta.';
+        }
+
+        if ($errores !== []) {
+            throw ValidationException::withMessages(['datos' => $errores]);
+        }
+
+        $fecha = trim((string) $datos['fecha_lectura']);
+
+        return [
+            'estado' => 'acta_lectura_registrada',
+            'observacion' => "Acta de Excelencia Académica generada. Lectura registrada con fecha {$fecha}.",
         ];
     }
 
     /**
-     * Módulo 4 — reporte final: el acta de Excelencia Académica titula al
-     * estudiante.
+     * Módulo 5 — reporte final: titula al estudiante.
      *
-     * Exige que la designación del tribunal, el informe de evaluación y la
-     * lectura del acta hayan sido registrados: sin esos datos no hay
-     * constancia que titular.
+     * Exige que la designación, el informe, la calificación y la lectura del
+     * acta hayan sido registrados: sin esos datos no hay constancia que titular.
      *
      * @return array{estado:string, observacion:string}
      *
@@ -566,6 +630,7 @@ class ExcelenciaService
         $designacion = $modulos[self::MODULO_DESIGNACION] ?? [];
         $informe = $modulos[self::MODULO_INFORME] ?? [];
         $resolucion = $modulos[self::MODULO_RESOLUCION] ?? [];
+        $acta = $modulos[self::MODULO_ACTA] ?? [];
 
         if (! $this->informado($designacion['numero_resolucion'] ?? null)) {
             throw ValidationException::withMessages([
@@ -579,19 +644,26 @@ class ExcelenciaService
             ]);
         }
 
-        if (! $this->informado($resolucion['fecha_lectura_acta'] ?? null)) {
+        if (! is_numeric($resolucion['calificacion_final'] ?? null)) {
             throw ValidationException::withMessages([
-                'datos' => ['Registre la fecha de lectura del acta antes de emitir el título.'],
+                'datos' => ['Registre la calificación antes de emitir el título.'],
             ]);
         }
 
-        $lectura = Carbon::parse($resolucion['fecha_lectura_acta'])->format('d/m/Y');
+        if (! $this->informado($acta['fecha_lectura'] ?? null)) {
+            throw ValidationException::withMessages([
+                'datos' => ['Genere el acta y registre la fecha de lectura antes de emitir el título.'],
+            ]);
+        }
+
+        $finalTexto = number_format((float) $resolucion['calificacion_final'], 2, '.', '');
 
         return [
             'estado' => 'titulado',
-            'observacion' => "Acta de Excelencia Académica generada. Lectura del acta del {$lectura} verificada. Estudiante titulado.",
+            'observacion' => "Reporte final de Excelencia Académica generado. Calificación final {$finalTexto} verificada. Estudiante titulado.",
         ];
     }
+
 
     /**
      * Ejecuta la transición de estado traduciendo el error de la máquina de
@@ -638,7 +710,9 @@ class ExcelenciaService
             self::MODULO_DESIGNACION,
             self::MODULO_INFORME,
             self::MODULO_RESOLUCION,
+            self::MODULO_ACTA,
         ], true)) {
+
             $guardado['verificado'] = true;
             $guardado['fecha_verificacion'] = Carbon::today()->toDateString();
         }
@@ -652,7 +726,12 @@ class ExcelenciaService
             }
         }
 
+        if ($modulo === self::MODULO_RESOLUCION && isset($destino['calificacion_final'])) {
+            $guardado['calificacion_final'] = $destino['calificacion_final'];
+        }
+
         $modulos[$modulo] = $guardado;
+
         $hitos['modulos'] = $modulos;
         $hitos[$destino['estado']] = Carbon::today()->toDateString();
 
@@ -677,8 +756,9 @@ class ExcelenciaService
         $documentos = match ($modulo) {
             self::MODULO_DESIGNACION => ['resolucion_tribunal' => self::DOC_RESOLUCION_DESIGNACION],
             self::MODULO_INFORME => ['informe_evaluacion_tribunal' => self::DOC_INFORME_EVALUACION],
-            self::MODULO_RESOLUCION => ['informe_lectura_acta' => self::DOC_INFORME_LECTURA_ACTA],
+            self::MODULO_ACTA => ['informe_lectura_acta' => self::DOC_INFORME_LECTURA_ACTA],
             self::MODULO_VERIFICACION => ['informe_verificacion' => self::DOC_INFORME_VERIFICACION],
+
             default => [],
         };
 
@@ -722,14 +802,15 @@ class ExcelenciaService
     }
 
     /**
-     * Trámite formateado con el estudiante y la modalidad cargados, listo para
-     * la respuesta de la API.
+     * Trámite formateado con el estudiante, la modalidad y los documentos
+     * cargados, listo para la respuesta de la API.
      */
     private function formatear(Tramite $tramite): array
     {
-        $tramite->refresh()->load(['modalidad', 'estudiante']);
+        $tramite->refresh()->load(['modalidad', 'estudiante', 'documentos']);
 
         return $this->tramites->formatear($tramite);
+
     }
 
     /**
@@ -740,8 +821,20 @@ class ExcelenciaService
         return (int) config('excelencia.nota_minima', 80);
     }
 
+    private function calificacionFinal(array $datos): float
+    {
+        $total = 0.0;
+
+        foreach (self::AREAS_CALIFICACION as $campo => $area) {
+            $total += (float) $datos[$campo] * $area['peso'];
+        }
+
+        return round($total, 2);
+    }
+
     /** Indica si un valor de formulario trae contenido. */
     private function informado(mixed $valor): bool
+
     {
         return is_string($valor) ? trim($valor) !== '' : $valor !== null;
     }

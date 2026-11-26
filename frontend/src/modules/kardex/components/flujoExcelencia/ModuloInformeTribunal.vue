@@ -75,7 +75,6 @@
               v-for="docente in docentes"
               :key="docente.id_docente"
               :value="docente.id_docente"
-              :disabled="esOtroSeleccionado(2, docente)"
             >
               {{ nombreDocente(docente) }}
             </option>
@@ -94,7 +93,6 @@
               v-for="docente in docentes"
               :key="docente.id_docente"
               :value="docente.id_docente"
-              :disabled="esOtroSeleccionado(1, docente)"
             >
               {{ nombreDocente(docente) }}
             </option>
@@ -102,31 +100,28 @@
         </div>
       </div>
       <p v-if="!docentes.length" class="dato-ayuda">No hay docentes disponibles para integrar el tribunal.</p>
-      <p class="dato-ayuda">Un mismo docente no puede ocupar los dos cargos.</p>
+      <p v-if="mismoDocenteSeleccionado" class="dato-ayuda text-red-400">
+        Un mismo docente no puede ocupar los dos cargos.
+      </p>
 
       <div>
-        <span class="label">Resultado de la evaluación</span>
-        <div class="space-y-2">
-          <label
-            v-for="opcion in resultados"
-            :key="opcion.valor"
-            class="flex items-start gap-3 rounded-xl border px-3.5 py-3 cursor-pointer transition"
-            :class="form.resultado_evaluacion === opcion.valor
-              ? 'border-orange-500/50 bg-orange-500/10 text-orange-200'
-              : 'border-white/10 bg-white/5 text-slate-300 hover:border-orange-500/30'"
-          >
-            <input
-              v-model="form.resultado_evaluacion"
-              type="radio"
-              name="resultado_evaluacion"
-              :value="opcion.valor"
-              class="mt-0.5 h-4 w-4 rounded border-slate-500 bg-transparent text-orange-500 focus:ring-orange-400 focus:ring-offset-0"
-            />
-            <span class="text-sm leading-relaxed">
-              <span class="font-semibold">{{ opcion.etiqueta }}</span>
-              <span class="text-slate-400"> ({{ opcion.texto }})</span>
-            </span>
-          </label>
+        <label class="label" for="excelencia-resultado-evaluacion">Resultado de la evaluación</label>
+        <select
+          id="excelencia-resultado-evaluacion"
+          v-model="form.resultado_evaluacion"
+          class="input"
+        >
+          <option value="">Seleccione el resultado</option>
+          <option v-for="opcion in resultados" :key="opcion.valor" :value="opcion.valor">
+            {{ opcion.etiqueta }}
+          </option>
+        </select>
+        <div
+          v-if="resultadoSeleccionado"
+          class="mt-2 rounded-xl border px-3.5 py-2.5"
+          :class="resultadoCajaTono"
+        >
+          <p class="text-sm" :class="resultadoTextoTono">{{ resultadoSeleccionado.texto }}</p>
         </div>
       </div>
 
@@ -269,8 +264,15 @@ const tonosResultado = {
   },
 };
 
+const mismoDocenteSeleccionado = computed(() => {
+  const tribunal1 = seleccionIds.tribunal_1;
+  const tribunal2 = seleccionIds.tribunal_2;
+
+  return tribunal1 !== null && tribunal2 !== null && String(tribunal1) === String(tribunal2);
+});
+
 const resultadoSeleccionado = computed(() =>
-  resultadoEvaluacion(props.datos?.resultado_evaluacion || form.resultado_evaluacion),
+  resultadoEvaluacion(props.completado ? props.datos?.resultado_evaluacion : form.resultado_evaluacion),
 );
 const resultadoCajaTono = computed(() =>
   tonosResultado[resultadoSeleccionado.value?.valor]?.caja || 'border-white/10 bg-white/5 text-slate-300',
@@ -283,24 +285,8 @@ function docentePorId(id) {
   return props.docentes.find((docente) => String(docente.id_docente) === String(id));
 }
 
-function esOtroSeleccionado(numero, docente) {
-  const otro = numero === 1 ? 2 : 1;
-  return String(seleccionIds[`tribunal_${otro}`] ?? '') === String(docente.id_docente);
-}
-
 function sincronizar(numero) {
   const clave = `tribunal_${numero}`;
-  const otro = numero === 1 ? 2 : 1;
-  const otraClave = `tribunal_${otro}`;
-
-  if (
-    seleccionIds[clave] !== null
-    && String(seleccionIds[clave]) === String(seleccionIds[otraClave])
-  ) {
-    seleccionIds[otraClave] = null;
-    form[otraClave] = null;
-  }
-
   const docente = docentePorId(seleccionIds[clave]);
 
   form[clave] = docente

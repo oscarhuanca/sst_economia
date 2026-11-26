@@ -40,7 +40,9 @@
             v-model="form.numero_resolucion"
             type="text"
             class="input"
-            placeholder="Ej: HCC-0316/2026"
+            placeholder="Ej: 250/2026"
+            @input="normalizarNumeroResolucion"
+            @blur="normalizarNumeroResolucion"
           />
         </div>
         <div>
@@ -70,7 +72,7 @@
 <script setup>
 import { computed, reactive, ref } from 'vue';
 import { validarModulo } from '@/modules/examen/utils/flujoExamen';
-import { fechaLegible } from '@/modules/kardex/utils/formato';
+import { fechaLegible, prefijarNumeroResolucion } from '@/modules/kardex/utils/formato';
 import AppIcon from '@/ui/AppIcon.vue';
 import ModuloTarjeta from '../flujo/ModuloTarjeta.vue';
 
@@ -91,6 +93,10 @@ const form = reactive({
   fecha_resolucion: props.datos?.fecha_resolucion || '',
 });
 
+function normalizarNumeroResolucion() {
+  form.numero_resolucion = prefijarNumeroResolucion(form.numero_resolucion);
+}
+
 const errores = ref([]);
 const hoyISO = computed(() => new Date().toISOString().slice(0, 10));
 
@@ -100,7 +106,7 @@ const aprobado = computed(() => props.registro || props.datos);
 
 function guardar() {
   const datos = {
-    numero_resolucion: form.numero_resolucion.trim(),
+    numero_resolucion: prefijarNumeroResolucion(form.numero_resolucion),
     fecha_resolucion: form.fecha_resolucion,
   };
   const res = validarModulo('resolucion_resultado_teorico', datos);

@@ -10,7 +10,9 @@ import routes from './router/excelencia.routes';
 
 export { useExcelenciaStore } from './stores/excelencia';
 export {
+    AREAS_CALIFICACION,
     MODULOS_FLUJO_EXCELENCIA,
+    MODULO_ACTA,
     MODULO_INICIO,
     MODULO_DESIGNACION,
     MODULO_INFORME,
@@ -21,10 +23,13 @@ export {
     ORDEN_ESTADOS,
     RANGO_NOTA,
     RESULTADOS_EVALUACION,
+    actaLectura,
+    calificacionFinal,
     datosDeModulo,
     designacionTribunal,
     documentosSolicitud,
     esFlujoExcelencia,
+    formatoCalificacion,
     informeTribunal,
     modulosExcelencia,
     nombreDocente,

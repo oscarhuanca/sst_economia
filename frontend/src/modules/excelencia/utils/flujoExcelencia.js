@@ -1,7 +1,7 @@
 // ============================================================================
 // Flujo de Excelencia Académica gestionado por KARDEX.
 //
-// Describe la modalidad como una secuencia de 5 módulos:
+// Describe la modalidad como una secuencia de 6 módulos:
 //
 //  1. `inicio_tramite` — el estudiante presentó la solicitud con los tres PDF
 //     obligatorios; KARDEX puede verlos desde la vista del trámite.
@@ -10,10 +10,10 @@
 //  3. `informe_tribunal` — se registra el Informe de Evaluación del Tribunal
 //     con el Tribunal 1 y el Tribunal 2 elegidos del catálogo de docentes, y su
 //     PDF opcional.
-//  4. `resolucion_hcc` — se registran el número y la fecha de la Resolución del
-//     HCC de lectura del acta, la fecha de lectura y el PDF opcional.
-//  5. `reporte` — se emite el acta de Excelencia Académica y el estudiante
-//     queda `titulado`.
+//  4. `resolucion_hcc` — se registran las calificaciones por área y la
+//     calificación final ponderada del postulante.
+//  5. `acta_lectura` — se genera el acta y se registra la fecha de su lectura.
+//  6. `reporte` — se genera el reporte final y el estudiante queda `titulado`.
 //
 // El estado actual del trámite es la fuente de verdad del avance.
 // Espejo de `App\Modules\Excelencia\Services\ExcelenciaService`.
@@ -33,7 +33,7 @@ export const MODULOS_FLUJO_EXCELENCIA = [
     id: 'designacion_tribunal',
     label: 'Designación de Tribunal de Evaluación',
     estado: 'tribunal_designado',
-    pct: 40,
+    pct: 36,
     icon: 'users',
     badge: 'Tribunal Designado',
   },
@@ -41,25 +41,33 @@ export const MODULOS_FLUJO_EXCELENCIA = [
     id: 'informe_tribunal',
     label: 'Informe de Evaluación del Tribunal',
     estado: 'informe_tribunal_registrado',
-    pct: 60,
+    pct: 52,
     icon: 'clipboard',
     badge: 'Informe Registrado',
   },
   {
     id: 'resolucion_hcc',
-    label: 'Resolución del HCC y Lectura del Acta',
+    label: 'Calificación',
     estado: 'resolucion_hcc_registrada',
-    pct: 80,
+    pct: 68,
     icon: 'shield',
-    badge: 'Resolución Registrada',
+    badge: 'Calificación Registrada',
+  },
+  {
+    id: 'acta_lectura',
+    label: 'Generación y lectura del acta',
+    estado: 'acta_lectura_registrada',
+    pct: 100,
+    icon: 'file-text',
+    badge: 'Acta Generada y Leída',
   },
   {
     id: 'reporte',
-    label: 'Reporte Final',
+    label: 'Reporte',
     estado: 'titulado',
     pct: 100,
     icon: 'file-text',
-    badge: 'Estudiante Titulado',
+    badge: 'Reporte Generado',
   },
 ];
 
@@ -69,10 +77,11 @@ export const ORDEN_ESTADOS = [
   'tribunal_designado',
   'informe_tribunal_registrado',
   'resolucion_hcc_registrada',
+  'acta_lectura_registrada',
   'titulado',
 ];
 
-const PORCENTAJES = [20, 40, 60, 80, 100];
+const PORCENTAJES = [20, 36, 52, 68, 100, 100];
 
 /** Rango y mínimo de nota (espejo de `config/excelencia.php`, solo legado). */
 export const RANGO_NOTA = [0, 100];
@@ -92,9 +101,36 @@ export const TIPOS_DOCUMENTO_EXCELENCIA = [
 export function documentosSolicitud(tramite) {
   const orden = TIPOS_DOCUMENTO_EXCELENCIA.map((d) => d.tipo);
 
-  return [...(tramite?.documentos || [])].sort(
-    (a, b) => orden.indexOf(a.tipo_documento) - orden.indexOf(b.tipo_documento),
+  return [...(tramite?.documentos || [])]
+    .filter((documento) => orden.includes(documento.tipo_documento))
+    .sort((a, b) => orden.indexOf(a.tipo_documento) - orden.indexOf(b.tipo_documento));
+}
+
+export const AREAS_CALIFICACION = [
+  { campo: 'calificacion_cuantitativa', etiqueta: 'Área Cuantitativa', porcentaje: 40 },
+  { campo: 'calificacion_teoria_economica', etiqueta: 'Área de Teoría Económica', porcentaje: 40 },
+  { campo: 'calificacion_materias_complementarias', etiqueta: 'Área de materias complementarias', porcentaje: 20 },
+];
+
+export function calificacionFinal(datos = {}) {
+  const valores = AREAS_CALIFICACION.map(({ campo }) => datos[campo]);
+
+  if (valores.some((valor) => valor === '' || valor === null || valor === undefined || !Number.isFinite(Number(valor)))) {
+    return null;
+  }
+
+  const total = AREAS_CALIFICACION.reduce(
+    (suma, area, indice) => suma + Number(valores[indice]) * (area.porcentaje / 100),
+    0,
   );
+
+  return Math.round((total + Number.EPSILON) * 100) / 100;
+}
+
+export function formatoCalificacion(valor) {
+  if (valor === null || valor === undefined || valor === '') return '—';
+  const numero = Number(valor);
+  return Number.isFinite(numero) ? numero.toFixed(2) : '—';
 }
 
 /** Opciones del resultado de la evaluación del tribunal. */
@@ -112,6 +148,7 @@ export const MODULO_INICIO = 'inicio_tramite';
 export const MODULO_DESIGNACION = 'designacion_tribunal';
 export const MODULO_INFORME = 'informe_tribunal';
 export const MODULO_RESOLUCION = 'resolucion_hcc';
+export const MODULO_ACTA = 'acta_lectura';
 export const MODULO_REPORTE = 'reporte';
 
 /** Módulo heredado (ya no se registra, se conserva solo para datos antiguos). */
@@ -182,14 +219,23 @@ export function informeTribunal(tramite) {
   };
 }
 
-/** Resolución del HCC registrada para el trámite (paso 4). */
+/** Calificación registrada para el trámite (paso 4). */
 export function resolucionHcc(tramite) {
   const datos = datosDeModulo(tramite, MODULO_RESOLUCION) || {};
 
   return {
-    numero_resolucion: datos.numero_resolucion || null,
-    fecha_resolucion: datos.fecha_resolucion || null,
-    fecha_lectura_acta: datos.fecha_lectura_acta || null,
+    ...Object.fromEntries(AREAS_CALIFICACION.map(({ campo }) => [campo, datos[campo] ?? null])),
+    calificacion_final: datos.calificacion_final ?? null,
+  };
+}
+
+/** Acta generada y fecha de lectura registradas en el trámite (paso 5). */
+export function actaLectura(tramite) {
+  const datos = datosDeModulo(tramite, MODULO_ACTA) || {};
+
+  return {
+    fecha_lectura: datos.fecha_lectura || null,
+    generada: Boolean(datos.verificado),
   };
 }
 
@@ -262,7 +308,7 @@ export function validarModulo(moduloId, datos = {}) {
         errores.push('Seleccione el Tribunal 2 del catálogo de docentes.');
       }
       if (t1 && t2 && String(t1.id_docente) === String(t2.id_docente)) {
-        errores.push('Tribunal 1 y Tribunal 2 deben ser docentes distintos.');
+        errores.push('Un mismo docente no puede ocupar los dos cargos.');
       }
       if (!resultadoEvaluacion(datos.resultado_evaluacion)) {
         errores.push('Seleccione el resultado de la evaluación del tribunal.');
@@ -273,12 +319,28 @@ export function validarModulo(moduloId, datos = {}) {
       break;
     }
 
-    case MODULO_RESOLUCION:
-      if (!val(datos.numero_resolucion)) errores.push('Ingrese el número de Resolución del HCC.');
-      if (!val(datos.fecha_resolucion)) errores.push('Seleccione la fecha de la Resolución.');
-      if (!val(datos.fecha_lectura_acta)) errores.push('Seleccione la fecha de lectura del acta.');
+    case MODULO_RESOLUCION: {
+      for (const area of AREAS_CALIFICACION) {
+        const valor = datos[area.campo];
+
+        if (valor === '' || valor === null || valor === undefined || !Number.isFinite(Number(valor))) {
+          errores.push(`Ingrese la calificación de ${area.etiqueta}.`);
+        } else if (Number(valor) < 0 || Number(valor) > 100) {
+          errores.push(`La calificación de ${area.etiqueta} debe estar entre 0 y 100.`);
+        }
+      }
       if (datos.confirmado !== true) {
-        errores.push('Marque la verificación de la Resolución y de la lectura del acta.');
+        errores.push('Marque la verificación de las calificaciones.');
+      }
+      break;
+    }
+
+    case MODULO_ACTA:
+      if (!val(datos.fecha_lectura)) {
+        errores.push('Seleccione la fecha de lectura del acta.');
+      }
+      if (datos.confirmado !== true) {
+        errores.push('Marque la verificación de la generación y lectura del acta.');
       }
       break;
 

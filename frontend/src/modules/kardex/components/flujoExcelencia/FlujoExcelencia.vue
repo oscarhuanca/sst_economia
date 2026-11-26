@@ -26,7 +26,7 @@
       <div class="mt-6">
         <BarraProgresoTitulacion
           :progreso="progreso"
-          :modulos="modulos"
+          :modulos="modulosFlujo"
           :estado-actual="tramite?.estado_actual"
         />
       </div>
@@ -52,9 +52,9 @@
       </div>
     </div>
 
-    <!-- 5 módulos del flujo, cada uno bloqueado hasta cerrar el anterior -->
+    <!-- Módulos del flujo; el reporte se muestra aparte -->
     <div class="grid lg:grid-cols-2 gap-4">
-      <template v-for="(m, i) in modulos" :key="m.id">
+      <template v-for="(m, i) in modulosFlujo" :key="m.id">
         <ModuloInicioTramite
           v-if="m.id === 'inicio_tramite'"
           :numero="i + 1"
@@ -96,7 +96,8 @@
           @guardar="(datos, archivos) => guardar(m.id, datos, archivos)"
         />
         <ModuloReporteExcelencia
-          v-else
+          v-else-if="m.id === 'acta_lectura'"
+          modo="acta"
           :numero="i + 1"
           :completado="m.completado"
           :en-progreso="i === proximoPendiente"
@@ -107,6 +108,17 @@
         />
       </template>
     </div>
+
+    <div class="mt-5 border-t border-white/10 pt-5 flex justify-end">
+      <ModuloReporteExcelencia
+        modo="reporte"
+        :numero="modulosFlujo.length + 1"
+        :completado="false"
+        :en-progreso="false"
+        :bloqueado="false"
+        :tramite="tramite"
+      />
+    </div>
   </div>
 </template>
 
@@ -115,6 +127,7 @@ import { computed, ref } from 'vue';
 import { useKardexStore } from '../../stores/kardex';
 import {
     MODULOS_FLUJO_EXCELENCIA,
+    MODULO_REPORTE,
     modulosExcelencia,
     pctExcelencia,
     proximoModuloPendiente,
@@ -145,22 +158,29 @@ const toastStore = useToastStore();
 const guardando = ref(false);
 
 const estudiante = computed(() => props.tramite?.estudiante || {});
-const progreso = computed(() => pctExcelencia(props.tramite));
-const proximoPendiente = computed(() => proximoModuloPendiente(props.tramite));
+const modulosFlujo = computed(() =>
+    modulosExcelencia(props.tramite)
+        .filter((m) => m.id !== MODULO_REPORTE)
+        .map((m) => ({
+            ...m,
+            datos: props.tramite?.hitos?.modulos?.[m.id] || null,
+            registro: props.tramite?.hitos?.modulos?.[m.id] || null,
+        })),
+);
+const progresoMaximo = computed(() =>
+    modulosFlujo.value[modulosFlujo.value.length - 1]?.pct ?? 100,
+);
+const progreso = computed(() => Math.min(pctExcelencia(props.tramite), progresoMaximo.value));
+const proximoPendiente = computed(() => {
+    const pendiente = proximoModuloPendiente(props.tramite);
+    return pendiente < modulosFlujo.value.length ? pendiente : -1;
+});
 const rechazado = computed(() => props.tramite?.estado_actual === 'rechazado');
 const resolucionAdmision = computed(() => resolucionAdmisionHcc(props.tramite));
 
-const modulos = computed(() =>
-    modulosExcelencia(props.tramite).map((m) => ({
-        ...m,
-        datos: props.tramite?.hitos?.modulos?.[m.id] || null,
-        registro: props.tramite?.hitos?.modulos?.[m.id] || null,
-    })),
-);
-
 /**
- * Un módulo sólo se habilita cuando es el siguiente pendiente. Con el trámite
- * rechazado o ya titulado no hay ningún módulo disponible.
+ * Un módulo se habilita cuando es el siguiente pendiente; el reporte se
+ * muestra aparte y no participa de este control.
  */
 function bloqueado(indice) {
     return indice !== proximoPendiente.value;

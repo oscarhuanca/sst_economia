@@ -49,6 +49,7 @@ export const SECUENCIAS = {
     'tribunal_designado',
     'informe_tribunal_registrado',
     'resolucion_hcc_registrada',
+    'acta_lectura_registrada',
     'titulado',
   ],
 };
@@ -91,7 +92,8 @@ export const SIGUIENTES_POR_ESTADO = {
   // --- Excelencia Académica (espejo de TramiteStateService::TRANSITIONS) ---
   tribunal_designado: ['informe_tribunal_registrado'],
   informe_tribunal_registrado: ['resolucion_hcc_registrada'],
-  resolucion_hcc_registrada: ['titulado'],
+  resolucion_hcc_registrada: ['acta_lectura_registrada'],
+  acta_lectura_registrada: ['titulado'],
 
   reprobado: [],
   rechazado: [],
@@ -1176,21 +1178,58 @@ export function guardarModuloExcelenciaMock(tramite, moduloId, datos) {
     });
     destino = { estado: 'informe_tribunal_registrado', resultado: 'informe_tribunal_registrado' };
   } else if (moduloId === 'resolucion_hcc') {
-    if (
-      !String(datos.numero_resolucion || '').trim()
-      || !datos.fecha_resolucion
-      || !datos.fecha_lectura_acta
-      || datos.confirmado !== true
-    ) {
-      throw { message: 'Registre la Resolución, la fecha de lectura del acta y marque la verificación.' };
+    const notas = [
+      ['calificacion_cuantitativa', 'Área Cuantitativa', 40],
+      ['calificacion_teoria_economica', 'Área de Teoría Económica', 40],
+      ['calificacion_materias_complementarias', 'Área de materias complementarias', 20],
+    ];
+
+    for (const [campo, etiqueta] of notas) {
+      const valor = datos[campo];
+      const nota = Number(valor);
+      if (
+        valor === '' || valor === null || valor === undefined
+        || !Number.isFinite(nota) || nota < 0 || nota > 100
+      ) {
+        throw { message: `Ingrese una calificación válida para ${etiqueta}.` };
+      }
+    }
+
+    if (datos.confirmado !== true) {
+      throw { message: 'Marque la verificación de las calificaciones.' };
+    }
+
+    const final = Math.round(notas.reduce(
+      (suma, [campo, , porcentaje]) => suma + Number(datos[campo]) * (porcentaje / 100),
+      0,
+    ) * 100) / 100;
+
+    Object.assign(guardado, {
+      verificado: true,
+      fecha_verificacion: hoy.slice(0, 10),
+      calificacion_final: final,
+    });
+    destino = { estado: 'resolucion_hcc_registrada', resultado: 'calificacion_registrada' };
+  } else if (moduloId === 'acta_lectura') {
+    const resolucion = t.hitos?.modulos?.resolucion_hcc || {};
+
+    if (!String(datos.fecha_lectura || '').trim()) {
+      throw { message: 'Seleccione la fecha de lectura del acta.' };
+    }
+    if (datos.confirmado !== true) {
+      throw { message: 'Marque la verificación de la generación y lectura del acta.' };
+    }
+    if (!Number.isFinite(Number(resolucion.calificacion_final))) {
+      throw { message: 'Registre la calificación antes de generar el acta.' };
     }
 
     Object.assign(guardado, { verificado: true, fecha_verificacion: hoy.slice(0, 10) });
-    destino = { estado: 'resolucion_hcc_registrada', resultado: 'resolucion_registrada' };
+    destino = { estado: 'acta_lectura_registrada', resultado: 'acta_lectura_registrada' };
   } else if (moduloId === 'reporte') {
     const designacion = t.hitos?.modulos?.designacion_tribunal || {};
     const informe = t.hitos?.modulos?.informe_tribunal || {};
     const resolucion = t.hitos?.modulos?.resolucion_hcc || {};
+    const acta = t.hitos?.modulos?.acta_lectura || {};
 
     if (!designacion.numero_resolucion) {
       throw { message: 'Registre primero la designación del Tribunal de Evaluación.' };
@@ -1198,8 +1237,11 @@ export function guardarModuloExcelenciaMock(tramite, moduloId, datos) {
     if (!informe.verificado) {
       throw { message: 'Registre el Informe de Evaluación del Tribunal antes de emitir el título.' };
     }
-    if (!resolucion.fecha_lectura_acta) {
-      throw { message: 'Registre la fecha de lectura del acta antes de emitir el título.' };
+    if (!Number.isFinite(Number(resolucion.calificacion_final))) {
+      throw { message: 'Registre la calificación antes de emitir el título.' };
+    }
+    if (!String(acta.fecha_lectura || '').trim()) {
+      throw { message: 'Genere el acta y registre la fecha de lectura antes de emitir el título.' };
     }
 
     destino = { estado: 'titulado', resultado: 'titulado' };

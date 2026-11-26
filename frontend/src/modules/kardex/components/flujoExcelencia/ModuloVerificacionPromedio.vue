@@ -154,7 +154,9 @@
             v-model="form.numero_resolucion"
             type="text"
             class="input"
-            placeholder="Ej: HCC-0158/2026"
+            placeholder="Ej: 250/2026"
+            @input="normalizarNumeroResolucion"
+            @blur="normalizarNumeroResolucion"
           />
         </div>
         <div>
@@ -266,7 +268,7 @@ import {
     NOTA_MINIMA,
     validarModulo,
 } from '@/modules/excelencia/utils/flujoExcelencia';
-import { fechaLegible } from '@/modules/kardex/utils/formato';
+import { fechaLegible, prefijarNumeroResolucion } from '@/modules/kardex/utils/formato';
 import { assetUrl } from '@/core/http/storage';
 import AppIcon from '@/ui/AppIcon.vue';
 import ModuloTarjeta from '../flujo/ModuloTarjeta.vue';
@@ -307,6 +309,10 @@ const form = reactive({
     confirmado: false,
     observaciones: props.datos?.observaciones || '',
 });
+
+function normalizarNumeroResolucion() {
+    form.numero_resolucion = prefijarNumeroResolucion(form.numero_resolucion);
+}
 
 const archivoVerificacion = ref(null);
 const errores = ref([]);
@@ -353,7 +359,7 @@ function guardar() {
     const datos = {
         promedio: form.promedio === '' ? '' : Number(form.promedio),
         resultado: form.resultado,
-        numero_resolucion: form.numero_resolucion.trim(),
+        numero_resolucion: prefijarNumeroResolucion(form.numero_resolucion),
         fecha_resolucion: form.fecha_resolucion,
         confirmado: form.confirmado,
         observaciones: form.observaciones.trim(),

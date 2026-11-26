@@ -32,9 +32,9 @@
             </dd>
           </div>
           <div class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
-            <dt class="dato-label">Lectura del acta</dt>
+            <dt class="dato-label">Calificación final</dt>
             <dd class="text-sm font-semibold text-white mt-1">
-              {{ resolucion.fecha_lectura_acta ? fechaLegible(resolucion.fecha_lectura_acta) : '—' }}
+              {{ formatoCalificacion(resolucion.calificacion_final) }}
             </dd>
           </div>
         </dl>
@@ -132,8 +132,10 @@
 import { computed } from 'vue';
 import { EstadoBadge, formatoEstado, toneEstado } from '@/modules/tramites';
 import {
+    actaLectura,
     designacionTribunal,
     documentosSolicitud,
+    formatoCalificacion,
     informeTribunal,
     modulosExcelencia,
     nombreDocente,
@@ -152,6 +154,7 @@ const estadoActual = computed(() => props.tramite?.estado_actual);
 const designacion = computed(() => designacionTribunal(props.tramite));
 const informe = computed(() => informeTribunal(props.tramite));
 const resolucion = computed(() => resolucionHcc(props.tramite));
+const acta = computed(() => actaLectura(props.tramite));
 const titulado = computed(() => estadoActual.value === 'titulado');
 
 function nombreMiembro(miembro) {
@@ -207,14 +210,18 @@ function datosModulo(m) {
             return `${nombreMiembro(i.tribunal_1)} / ${nombreMiembro(i.tribunal_2)}`;
         }
         case 'resolucion_hcc': {
-            const r = resolucion.value;
-            if (!r.numero_resolucion) return '';
-            const fechaResolucion = r.fecha_resolucion ? ` · ${fechaLegible(r.fecha_resolucion)}` : '';
-            const lectura = r.fecha_lectura_acta ? ` · Lectura: ${fechaLegible(r.fecha_lectura_acta)}` : '';
-            return `Resolución HCC N° ${r.numero_resolucion}${fechaResolucion}${lectura}`;
+          const r = resolucion.value;
+          if (r.calificacion_final === null) return '';
+          return `Calificación final: ${formatoCalificacion(r.calificacion_final)}`;
+        }
+
+        case 'acta_lectura': {
+            const a = acta.value;
+            if (!a.fecha_lectura) return '';
+            return `Lectura del acta: ${fechaLegible(a.fecha_lectura)}`;
         }
         case 'reporte':
-            return m.completado ? 'Acta de Excelencia Académica emitida' : '';
+            return m.completado ? 'Reporte final de Excelencia Académica generado' : '';
         default:
             return '';
     }

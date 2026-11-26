@@ -63,7 +63,9 @@
             v-model="form.numero_resolucion"
             type="text"
             class="input"
-            placeholder="Ej: HCC-DIS-0158/2026"
+            placeholder="Ej: 250/2026"
+            @input="normalizarNumeroResolucion"
+            @blur="normalizarNumeroResolucion"
           />
         </div>
         <div>
@@ -157,7 +159,7 @@
 <script setup>
 import { computed, reactive, ref } from 'vue';
 import { validarModulo } from '@/modules/excelencia/utils/flujoExcelencia';
-import { fechaLegible } from '@/modules/kardex/utils/formato';
+import { fechaLegible, prefijarNumeroResolucion } from '@/modules/kardex/utils/formato';
 import { assetUrl } from '@/core/http/storage';
 import AppIcon from '@/ui/AppIcon.vue';
 import ModuloTarjeta from '../flujo/ModuloTarjeta.vue';
@@ -204,7 +206,12 @@ function handleArchivo(event) {
   event.target.value = '';
 }
 
+function normalizarNumeroResolucion() {
+  form.numero_resolucion = prefijarNumeroResolucion(form.numero_resolucion);
+}
+
 function guardar() {
+  normalizarNumeroResolucion();
   const datos = {
     numero_resolucion: form.numero_resolucion.trim(),
     fecha_resolucion: form.fecha_resolucion,

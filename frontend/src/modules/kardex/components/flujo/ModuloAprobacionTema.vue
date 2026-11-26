@@ -125,7 +125,9 @@
           v-model="form.numero_resolucion"
           type="text"
           class="input"
-          placeholder="Ej: HCC-0102/2026"
+          placeholder="Ej: 250/2026"
+          @input="normalizarNumeroResolucion"
+          @blur="normalizarNumeroResolucion"
         />
       </div>
       <div>
@@ -281,7 +283,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
 import { validarModulo } from '@/modules/tramites/utils/flujoTitulacion';
-import { fechaLegible } from '@/modules/kardex/utils/formato';
+import { fechaLegible, prefijarNumeroResolucion } from '@/modules/kardex/utils/formato';
 import { assetUrl } from '@/core/http/storage';
 import AppIcon from '@/ui/AppIcon.vue';
 import ModuloTarjeta from './ModuloTarjeta.vue';
@@ -308,6 +310,10 @@ const form = reactive({
   perfil_aprobado: Boolean(props.datos?.perfil_aprobado),
   titulo_perfil: '',
 });
+
+function normalizarNumeroResolucion() {
+  form.numero_resolucion = prefijarNumeroResolucion(form.numero_resolucion);
+}
 
 const busqueda = ref('');
 const abierta = ref(false);
@@ -376,7 +382,7 @@ function handleResolucionTema(event) {
 
 function obtenerDatos() {
   const datos = {
-    numero_resolucion: form.numero_resolucion.trim(),
+    numero_resolucion: prefijarNumeroResolucion(form.numero_resolucion),
     fecha_resolucion: form.fecha_resolucion,
     tema_investigacion: form.tema_investigacion.trim(),
     tutor_id: form.tutor_id,

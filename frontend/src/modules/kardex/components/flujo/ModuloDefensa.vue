@@ -182,7 +182,9 @@
             v-model="form.numero_resolucion"
             type="text"
             class="input"
-            placeholder="Ej: HCC-0315/2026"
+            placeholder="Ej: 250/2026"
+            @input="normalizarNumeroResolucion"
+            @blur="normalizarNumeroResolucion"
           />
         </div>
         <div>
@@ -284,7 +286,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
 import { NOTA_MINIMA_DEFENSA, validarModulo } from '@/modules/tramites/utils/flujoTitulacion';
-import { fechaLegible } from '@/modules/kardex/utils/formato';
+import { fechaLegible, prefijarNumeroResolucion } from '@/modules/kardex/utils/formato';
 import AppIcon from '@/ui/AppIcon.vue';
 import ModuloTarjeta from './ModuloTarjeta.vue';
 
@@ -310,6 +312,10 @@ const form = reactive({
   fecha_defensa: props.datos?.fecha_defensa || '',
   nota_final: props.datos?.nota_final ?? '',
 });
+
+function normalizarNumeroResolucion() {
+  form.numero_resolucion = prefijarNumeroResolucion(form.numero_resolucion);
+}
 
 const paso = ref('1');
 const errores = ref([]);
@@ -423,7 +429,7 @@ function obtenerDatos() {
   if (!paso2Completado.value) {
     return {
       ...base,
-      numero_resolucion: form.numero_resolucion.trim(),
+      numero_resolucion: prefijarNumeroResolucion(form.numero_resolucion),
       fecha_defensa: form.fecha_defensa,
       paso: 2,
     };
@@ -431,7 +437,7 @@ function obtenerDatos() {
 
   return {
     ...base,
-    numero_resolucion: props.datos.numero_resolucion,
+    numero_resolucion: prefijarNumeroResolucion(props.datos.numero_resolucion),
     fecha_defensa: props.datos.fecha_defensa,
     nota_final: form.nota_final === '' ? '' : Number(form.nota_final),
     paso: 3,

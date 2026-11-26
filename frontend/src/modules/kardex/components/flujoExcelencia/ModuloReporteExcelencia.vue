@@ -1,45 +1,55 @@
 <template>
   <ModuloTarjeta
+    v-if="esActa"
     :numero="numero"
-    titulo="Reporte Final"
-    descripcion="Emite el acta oficial de Excelencia Académica; titula al estudiante cuando el tribunal fue designado, evaluado y la lectura del acta ya fue registrada."
+    :titulo="titulo"
+    :descripcion="descripcion"
     icono="file-text"
     :completado="completado"
     :en-progreso="enProgreso"
     :bloqueado="bloqueado"
   >
-    <!-- Estudiante ya titulado -->
     <div v-if="completado" class="space-y-4">
       <div
-        class="flex items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3"
+        class="flex items-center gap-3 rounded-xl border px-4 py-3"
+        :class="esActa ? 'border-orange-500/30 bg-orange-500/10' : 'border-emerald-500/30 bg-emerald-500/10'"
       >
-        <AppIcon name="check-circle" :size="18" class="shrink-0 text-emerald-300" />
-        <p class="text-sm font-semibold text-emerald-200">
-          Excelencia Académica concluida. El estudiante quedó titulado.
+        <AppIcon
+          name="check-circle"
+          :size="18"
+          class="shrink-0"
+          :class="esActa ? 'text-orange-300' : 'text-emerald-300'"
+        />
+        <p class="text-sm font-semibold" :class="esActa ? 'text-orange-200' : 'text-emerald-200'">
+          {{ esActa
+            ? `Acta generada y lectura registrada el ${fechaLegible(acta.fecha_lectura) || '—'}.`
+            : 'Excelencia Académica concluida. El estudiante quedó titulado.' }}
         </p>
       </div>
 
       <dl class="grid sm:grid-cols-3 gap-2.5">
-        <div class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
-          <dt class="dato-label">Resolución de designación</dt>
-          <dd class="text-sm font-semibold text-white mt-0.5">{{ designacion.numero_resolucion || '—' }}</dd>
-        </div>
-        <div class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
-          <dt class="dato-label">Tribunal 1 / Tribunal 2</dt>
+        <template v-if="!esActa">
+          <div class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
+            <dt class="dato-label">Resolución de designación</dt>
+            <dd class="text-sm font-semibold text-white mt-0.5">{{ designacion.numero_resolucion || '—' }}</dd>
+          </div>
+          <div class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
+            <dt class="dato-label">Tribunal 1 / Tribunal 2</dt>
+            <dd class="text-sm font-semibold text-white mt-0.5">
+              {{ nombreMiembro(informe.tribunal_1) }} / {{ nombreMiembro(informe.tribunal_2) }}
+            </dd>
+          </div>
+          <div class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
+            <dt class="dato-label">Calificación final</dt>
+            <dd class="text-sm font-semibold text-white mt-0.5">
+              {{ formatoCalificacion(resolucion.calificacion_final) }}
+            </dd>
+          </div>
+        </template>
+        <div v-if="esActa" class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
+          <dt class="dato-label">Fecha de lectura</dt>
           <dd class="text-sm font-semibold text-white mt-0.5">
-            {{ nombreMiembro(informe.tribunal_1) }} / {{ nombreMiembro(informe.tribunal_2) }}
-          </dd>
-        </div>
-        <div class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
-          <dt class="dato-label">Lectura del acta</dt>
-          <dd class="text-sm font-semibold text-white mt-0.5">
-            {{ fechaLegible(resolucion.fecha_lectura_acta || '') || '—' }}
-          </dd>
-        </div>
-        <div class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
-          <dt class="dato-label">Título emitido</dt>
-          <dd class="text-sm font-semibold text-white mt-0.5">
-            {{ fechaLegible(tramite?.hitos?.titulado || '') || '—' }}
+            {{ fechaLegible(acta.fecha_lectura) || '—' }}
           </dd>
         </div>
       </dl>
@@ -48,7 +58,7 @@
         <button type="button" class="btn-warm justify-center" :disabled="generando" @click="descargar">
           <AppIcon v-if="generando" name="loader" :size="18" class="animate-spin" />
           <AppIcon v-else name="download" :size="18" />
-          <span class="uppercase tracking-wide">Descargar acta</span>
+          <span class="uppercase tracking-wide">{{ esActa ? 'Descargar acta' : 'Descargar reporte' }}</span>
         </button>
         <button type="button" class="btn-ghost justify-center" :disabled="generando" @click="visualizar">
           <AppIcon name="eye" :size="18" />
@@ -59,12 +69,11 @@
 
     <div v-else-if="bloqueado" class="aviso-bloqueo">
       <AppIcon name="shield" :size="15" />
-      Registre la Resolución del HCC y la fecha de lectura del acta antes de emitir el acta de titulación.
+      {{ textoBloqueo }}
     </div>
 
-    <!-- Emisión del acta: genera el PDF y, sólo si sale bien, titula -->
     <div v-else class="space-y-5">
-      <dl class="grid sm:grid-cols-3 gap-2.5">
+      <dl v-if="!esActa" class="grid sm:grid-cols-3 gap-2.5">
         <div class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
           <dt class="dato-label">Resolución de designación</dt>
           <dd class="text-sm font-semibold text-white mt-0.5">{{ designacion.numero_resolucion || '—' }}</dd>
@@ -81,45 +90,91 @@
             {{ nombreMiembro(informe.tribunal_1) }} / {{ nombreMiembro(informe.tribunal_2) }}
           </dd>
         </div>
-        <div class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
-          <dt class="dato-label">N.º de Resolución del HCC</dt>
-          <dd class="text-sm font-semibold text-white mt-0.5">{{ resolucion.numero_resolucion || '—' }}</dd>
-        </div>
-        <div class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
-          <dt class="dato-label">Fecha de la resolución</dt>
+        <div
+          v-for="area in areas"
+          :key="area.campo"
+          class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5"
+        >
+          <dt class="dato-label">{{ area.etiqueta }} ({{ area.porcentaje }}%)</dt>
           <dd class="text-sm font-semibold text-white mt-0.5">
-            {{ fechaLegible(resolucion.fecha_resolucion || '') || '—' }}
+            {{ formatoCalificacion(resolucion[area.campo]) }}
           </dd>
         </div>
-        <div class="rounded-xl bg-white/5 border border-white/10 px-3.5 py-2.5">
-          <dt class="dato-label">Lectura del acta</dt>
-          <dd class="text-sm font-semibold text-white mt-0.5">
-            {{ fechaLegible(resolucion.fecha_lectura_acta || '') || '—' }}
+        <div class="rounded-xl bg-orange-500/10 border border-orange-500/30 px-3.5 py-2.5">
+          <dt class="dato-label text-orange-200">Calificación final</dt>
+          <dd class="text-sm font-semibold text-orange-200 mt-0.5">
+            {{ formatoCalificacion(resolucion.calificacion_final) }}
           </dd>
         </div>
       </dl>
 
-      <p class="aviso-bloqueo !border-amber-500/40 !bg-amber-500/10 !text-amber-200">
-        <AppIcon name="alert-triangle" :size="15" class="shrink-0" />
-        Generar el acta titula al estudiante y cierra el trámite: no admite más cambios.
-      </p>
+      <form v-if="esActa" class="space-y-4" @submit.prevent="generar">
+        <section class="rounded-xl border border-white/10 bg-white/5 px-3.5 py-3">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <p class="dato-label text-orange-200">5.1 Generación de Acta</p>
+              <p class="dato-ayuda">Genere el acta y use la opción de visualización.</p>
+            </div>
+            <div class="flex gap-2">
+              <button type="button" class="btn-ghost" :disabled="generando" @click="visualizar">
+                <AppIcon name="eye" :size="15" />
+                <span>Visualizar</span>
+              </button>
+            </div>
+          </div>
+        </section>
 
-      <ul v-if="errores.length" class="space-y-1">
-        <li v-for="(e, i) in errores" :key="i" class="flex items-start gap-2 text-sm text-red-400">
-          <AppIcon name="alert-triangle" :size="15" class="shrink-0 mt-0.5" />
-          {{ e }}
-        </li>
-      </ul>
+        <section class="space-y-3 rounded-xl border border-white/10 bg-white/5 px-3.5 py-3">
+          <p class="dato-label text-orange-200">5.2 Lectura del acta</p>
+          <div class="grid sm:grid-cols-2 gap-3">
+            <div>
+              <label class="label" for="excelencia-fecha-lectura">Fecha de lectura del acta</label>
+              <input
+                id="excelencia-fecha-lectura"
+                v-model="form.fecha_lectura"
+                type="date"
+                class="input"
+              />
+            </div>
+            <label class="flex items-start gap-2.5 cursor-pointer sm:mt-6">
+              <input
+                v-model="form.confirmado"
+                type="checkbox"
+                class="mt-0.5 h-4 w-4 rounded border-slate-500 bg-transparent text-orange-500 focus:ring-orange-400 focus:ring-offset-0"
+              />
+              <span class="text-xs leading-relaxed text-slate-300">
+                Confirmo y valido que el acta fue leída en la fecha indicada.
+              </span>
+            </label>
+          </div>
+        </section>
 
-      <div class="flex justify-end">
-        <button type="button" class="btn-warm px-6" :disabled="cargando || generando" @click="generar">
-          <AppIcon v-if="generando || cargando" name="loader" :size="18" class="animate-spin" />
-          <AppIcon v-else name="file-text" :size="18" />
-          <span class="uppercase tracking-wide">Generar acta y titular</span>
-        </button>
-      </div>
+        <ul v-if="errores.length" class="space-y-1">
+          <li v-for="(e, i) in errores" :key="i" class="flex items-start gap-2 text-sm text-red-400">
+            <AppIcon name="alert-triangle" :size="15" class="shrink-0 mt-0.5" />
+            {{ e }}
+          </li>
+        </ul>
+
+        <div class="flex justify-end">
+          <button type="submit" class="btn-warm px-6" :disabled="cargando || generando">
+            <AppIcon v-if="generando || cargando" name="loader" :size="18" class="animate-spin" />
+            <AppIcon v-else name="file-text" :size="18" />
+            <span class="uppercase tracking-wide">Guardar</span>
+          </button>
+        </div>
+      </form>
     </div>
   </ModuloTarjeta>
+
+  <div v-else class="card inline-flex p-3" aria-label="Reporte">
+    <button type="button" class="btn-warm px-6" :disabled="generando" @click="generar">
+      <AppIcon v-if="generando" name="loader" :size="18" class="animate-spin" />
+      <AppIcon v-else name="file-text" :size="18" />
+      <span class="uppercase tracking-wide">Generar reporte</span>
+    </button>
+  </div>
+
 
   <!-- Área imprimible (fuera de pantalla): el PDF se arma en el frontend. -->
   <div class="reporte-oculto" aria-hidden="true">
@@ -151,7 +206,7 @@
         </div>
       </section>
 
-      <h1 class="doc-titulo">Acta de Excelencia Académica</h1>
+      <h1 class="doc-titulo">{{ docTitulo }}</h1>
 
       <section class="doc-seccion">
         <h2 class="doc-seccion__titulo">1. Designación del Tribunal de Evaluación</h2>
@@ -166,6 +221,10 @@
               <td class="doc-tabla__detalle">{{ designacion.fecha_resolucion ? fechaLegible(designacion.fecha_resolucion) : '—' }}</td>
             </tr>
             <tr>
+              <td class="doc-tabla__desc">Fecha de lectura del acta</td>
+              <td class="doc-tabla__detalle">{{ fechaLecturaPdf ? fechaLegible(fechaLecturaPdf) : '—' }}</td>
+            </tr>
+            <tr>
               <td class="doc-tabla__desc">Tribunal 1</td>
               <td class="doc-tabla__detalle">{{ nombreMiembro(informe.tribunal_1) }}</td>
             </tr>
@@ -178,20 +237,16 @@
       </section>
 
       <section class="doc-seccion">
-        <h2 class="doc-seccion__titulo">2. Resolución del Consejo de la Universidad</h2>
+        <h2 class="doc-seccion__titulo">2. Calificación</h2>
         <table class="doc-tabla">
           <tbody>
-            <tr>
-              <td class="doc-tabla__desc">N.º de Resolución</td>
-              <td class="doc-tabla__detalle">{{ resolucion.numero_resolucion || '—' }}</td>
+            <tr v-for="area in areas" :key="area.campo">
+              <td class="doc-tabla__desc">{{ area.etiqueta }} ({{ area.porcentaje }}%)</td>
+              <td class="doc-tabla__detalle">{{ formatoCalificacion(resolucion[area.campo]) }}</td>
             </tr>
             <tr>
-              <td class="doc-tabla__desc">Fecha de la resolución</td>
-              <td class="doc-tabla__detalle">{{ fechaLegible(resolucion.fecha_resolucion || '') || '—' }}</td>
-            </tr>
-            <tr>
-              <td class="doc-tabla__desc">Fecha de lectura del acta</td>
-              <td class="doc-tabla__detalle">{{ fechaLegible(resolucion.fecha_lectura_acta || '') || '—' }}</td>
+              <td class="doc-tabla__desc"><strong>Calificación final</strong></td>
+              <td class="doc-tabla__detalle"><strong>{{ formatoCalificacion(resolucion.calificacion_final) }}</strong></td>
             </tr>
           </tbody>
         </table>
@@ -201,7 +256,7 @@
         <h2 class="doc-seccion__titulo">3. Dictamen</h2>
         <p class="doc-parrafo">
           En virtud de la designación del Tribunal de Evaluación, del Informe de Evaluación
-          presentado y del cumplimiento del plan de estudios de la carrera de {{ carrera }},
+          presentado, de la calificación obtenida y del cumplimiento del plan de estudios de la carrera de {{ carrera }},
           el Consejo RESUELVE <strong>TITULAR</strong> al estudiante
           <strong>{{ estudiante.nombre }}</strong>, con C.I. {{ estudiante.ci }} y R.U.
           {{ estudiante.ru }}, en la modalidad de
@@ -228,17 +283,21 @@
 </template>
 
 <script setup>
-// Módulo 3 del flujo de Excelencia Académica: emite el acta oficial y titula
-// al estudiante. El PDF se arma en el frontend con html2pdf a partir de los
-// datos que KARDEX registró (`hitos.modulos`), que son la fuente de verdad.
+// Comparte la generación del PDF entre el punto 5 (acta y fecha de lectura) y
+// el punto 6 (reporte final). El PDF se arma en el frontend con html2pdf a
+// partir de los datos que KARDEX registró (`hitos.modulos`), fuente de verdad.
 //
-// Emitir el acta y titular son la misma acción: el botón genera el PDF y sólo
-// si sale bien guarda el módulo, que deja el trámite en `titulado`. Si el PDF
-// falla, el módulo NO se guarda y el estudiante no queda titular sin constancia.
-import { computed, ref } from 'vue';
+// En ambos casos el PDF se genera antes de guardar el módulo: si falla, el
+// trámite no avanza y no queda una constancia emitida sin registro.
+import { computed, reactive, ref } from 'vue';
 import html2pdf from 'html2pdf.js';
 import {
+    AREAS_CALIFICACION,
+    MODULO_ACTA,
+    MODULO_REPORTE,
+    actaLectura,
     designacionTribunal,
+    formatoCalificacion,
     informeTribunal,
     nombreDocente,
     resolucionHcc,
@@ -252,6 +311,7 @@ import ModuloTarjeta from '../flujo/ModuloTarjeta.vue';
 
 const props = defineProps({
     numero: { type: [Number, String], required: true },
+    modo: { type: String, default: 'reporte' },
     completado: { type: Boolean, default: false },
     enProgreso: { type: Boolean, default: false },
     bloqueado: { type: Boolean, default: false },
@@ -267,10 +327,30 @@ const authStore = useAuthStore();
 const contenedorReporte = ref(null);
 const generando = ref(false);
 const errores = ref([]);
+const form = reactive({ fecha_lectura: '', confirmado: false });
+
+const areas = AREAS_CALIFICACION;
+const esActa = computed(() => props.modo === 'acta');
+const moduloId = computed(() => (esActa.value ? MODULO_ACTA : MODULO_REPORTE));
+
+const titulo = computed(() => (esActa.value ? 'Generación y lectura del acta' : 'Reporte'));
+const descripcion = computed(() => (esActa.value
+    ? 'Genera el acta oficial de Excelencia Académica y registra la fecha en que fue leída.'
+    : 'Genera el reporte final de Excelencia Académica y permite visualizarlo e imprimirlo.'));
+const textoBloqueo = computed(() => (esActa.value
+    ? 'Registre la calificación por áreas antes de generar el acta.'
+    : ''));
+const docTitulo = computed(() => (esActa.value
+    ? 'Acta de Excelencia Académica'
+    : 'Reporte Final de Excelencia Académica'));
 
 const designacion = computed(() => designacionTribunal(props.tramite));
 const informe = computed(() => informeTribunal(props.tramite));
 const resolucion = computed(() => resolucionHcc(props.tramite));
+const acta = computed(() => actaLectura(props.tramite));
+const fechaLecturaPdf = computed(() => (esActa.value
+    ? form.fecha_lectura || acta.value.fecha_lectura
+    : acta.value.fecha_lectura));
 
 function nombreMiembro(miembro) {
     return nombreDocente(miembro) || '—';
@@ -302,7 +382,8 @@ const OPCIONES_PDF = {
 
 function nombreReporte() {
     const sufijo = props.tramite?.id_tramite ? `_${props.tramite.id_tramite}` : '';
-    return `acta_excelencia_academica${sufijo}.pdf`;
+    const base = esActa.value ? 'acta_excelencia_academica' : 'reporte_final_excelencia_academica';
+    return `${base}${sufijo}.pdf`;
 }
 
 async function esperarImagenes(contenedor) {
@@ -343,16 +424,21 @@ async function producirPdf() {
 
 function registrarErrorPdf(error) {
     console.error('[Reporte Excelencia] No se pudo generar el PDF:', error);
-    toastStore.error('No se pudo generar el acta PDF. Intente nuevamente.');
+    toastStore.error(`No se pudo generar el ${esActa.value ? 'acta' : 'reporte'} PDF. Intente nuevamente.`);
 }
 
-/** Genera el PDF y, sólo si sale bien, titula al estudiante. */
 async function generar() {
-    const res = validarModulo('reporte', {});
+    const datos = esActa.value
+        ? { fecha_lectura: form.fecha_lectura, confirmado: form.confirmado }
+        : null;
 
-    if (!res.ok) {
-        errores.value = res.errores;
-        return;
+    if (esActa.value) {
+        const res = validarModulo(moduloId.value, datos);
+
+        if (!res.ok) {
+            errores.value = res.errores;
+            return;
+        }
     }
 
     errores.value = [];
@@ -369,7 +455,7 @@ async function generar() {
         generando.value = false;
     }
 
-    emit('guardar', {});
+    if (esActa.value) emit('guardar', datos);
 }
 
 async function descargar() {

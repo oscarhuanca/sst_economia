@@ -43,6 +43,7 @@ export const ESTADOS_OK = [
   'tribunal_designado',
   'informe_tribunal_registrado',
   'resolucion_hcc_registrada',
+  'acta_lectura_registrada',
 ];
 
 // Estados de error/rechazo con tono rojo.

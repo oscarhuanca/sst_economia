@@ -191,8 +191,9 @@ const observaciones = ref('');
 const FASES_EXCELENCIA = [
     { id: 'designacion_tribunal', label: 'Designación del tribunal', icon: 'users' },
     { id: 'informe_tribunal', label: 'Informe de evaluación', icon: 'clipboard' },
-    { id: 'resolucion_hcc', label: 'Resolución y lectura', icon: 'shield' },
-    { id: 'reporte', label: 'Reporte final', icon: 'file-text' },
+    { id: 'resolucion_hcc', label: 'Calificación', icon: 'shield' },
+    { id: 'acta_lectura', label: 'Generación y lectura del acta', icon: 'file-text' },
+    { id: 'reporte', label: 'Reporte', icon: 'file-text' },
 ];
 
 const tramite = computed(() => tramitesStore.tramiteActivo);

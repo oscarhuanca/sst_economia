@@ -116,7 +116,7 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted } from 'vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useKardexStore } from '@/modules/kardex';
 import { useTramitesStore } from '@/modules/tramites';
@@ -143,6 +143,15 @@ const buscar = async () => {
     await kardexStore.consultar(identificador.value.trim());
 };
 
+const INTERVALO_ACTUALIZACION_MS = 15000;
+let temporizadorActualizacion = null;
+
+const actualizarPostulante = () => {
+    if (document.hidden || kardexStore.cargando || kardexStore.simulado) return;
+    const ci = kardexStore.postulante?.ci;
+    if (ci) kardexStore.refrescar(String(ci));
+};
+
 /** Carga al estudiante indicado desde la alerta del panel general. */
 onMounted(async () => {
     await tramitesStore.cargarDocentes();
@@ -152,6 +161,12 @@ onMounted(async () => {
         identificador.value = inicial;
         await buscar();
     }
+
+    temporizadorActualizacion = setInterval(actualizarPostulante, INTERVALO_ACTUALIZACION_MS);
+});
+
+onUnmounted(() => {
+    clearInterval(temporizadorActualizacion);
 });
 
 /** Limpia la consulta para empezar de nuevo. */

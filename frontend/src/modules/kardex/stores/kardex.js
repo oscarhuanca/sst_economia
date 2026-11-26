@@ -580,7 +580,7 @@ export const useKardexStore = defineStore('kardex', {
                     datos,
                     archivos,
                 );
-                this.tramite = data;
+                this.tramite = { ...this.tramite, ...data };
                 return this.tramite;
             } catch (error) {
                 this.errorMessage = this._mensajeDeError(error, 'No se pudo guardar el módulo de Excelencia Académica.');

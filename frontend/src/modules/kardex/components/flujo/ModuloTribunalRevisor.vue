@@ -356,7 +356,9 @@
             v-model="form.numero_resolucion"
             type="text"
             class="input"
-            placeholder="Ej: HCC-0158/2026"
+            placeholder="Ej: 250/2026"
+            @input="normalizarNumeroResolucion"
+            @blur="normalizarNumeroResolucion"
           />
         </div>
         <div>
@@ -478,7 +480,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
 import { ETIQUETAS_ROL_TRIBUNAL, ROLES_TRIBUNAL, validarModulo } from '@/modules/tramites/utils/flujoTitulacion';
-import { fechaLegible } from '@/modules/kardex/utils/formato';
+import { fechaLegible, prefijarNumeroResolucion } from '@/modules/kardex/utils/formato';
 import { assetUrl } from '@/core/http/storage';
 import AppIcon from '@/ui/AppIcon.vue';
 import ModuloTarjeta from './ModuloTarjeta.vue';
@@ -524,6 +526,10 @@ const form = reactive({
     };
   }),
 });
+
+function normalizarNumeroResolucion() {
+  form.numero_resolucion = prefijarNumeroResolucion(form.numero_resolucion);
+}
 
 const paso = ref('1');
 const errores = ref([]);
@@ -672,7 +678,7 @@ function handleArchivoMiembro(rol, event) {
 
 function obtenerDatos() {
   const datos = {
-    numero_resolucion: form.numero_resolucion.trim(),
+    numero_resolucion: prefijarNumeroResolucion(form.numero_resolucion),
     fecha_resolucion: form.fecha_resolucion,
     nota_suficiencia_tutor_entregada: tutorEntregada.value,
     resolucion_tribunal_entregada: resolucionTribunalEntregada.value,

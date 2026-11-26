@@ -95,8 +95,8 @@ class TramiteStateService
      *
      * Excelencia Académica también avanza por módulos gestionados por KARDEX:
      * designación del Tribunal de Evaluación con su Resolución del HCC, Informe
-     * de Evaluación firmado por dos docentes, registro de la Resolución del HCC
-     * con la lectura del acta y reporte final, que titula al estudiante.
+     * de Evaluación firmado por dos docentes, calificación por áreas,
+     * generación y lectura del acta y reporte final, que titula al estudiante.
      *
      * @var array<string, array<string, array<int, string>>>
      */
@@ -161,11 +161,12 @@ class TramiteStateService
             'solicitud_presentada' => ['tribunal_designado', 'rechazado'],
             // 2. Informe de Evaluación del Tribunal (Tribunal 1 y Tribunal 2).
             'tribunal_designado' => ['informe_tribunal_registrado'],
-            // 3. Resolución del HCC y lectura del acta ante los tribunales.
+            // 3. Calificación por áreas del postulante.
             'informe_tribunal_registrado' => ['resolucion_hcc_registrada'],
-            // 4. Reporte final: el acta de Excelencia Académica titula al
-            //    estudiante.
-            'resolucion_hcc_registrada' => ['titulado'],
+            // 4. Generación del acta y registro de la fecha de lectura.
+            'resolucion_hcc_registrada' => ['acta_lectura_registrada'],
+            // 5. Reporte final: titula al estudiante.
+            'acta_lectura_registrada' => ['titulado'],
         ],
     ];
 

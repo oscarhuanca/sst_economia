@@ -8,9 +8,9 @@ use Illuminate\Foundation\Http\FormRequest;
  * Validación del guardado de un módulo del flujo de Excelencia Académica.
  *
  * Igual que en el flujo de Examen de Grado, este request es un sobre fino:
- * valida la forma del cuerpo y deja las reglas de cada módulo (promedio
- * válido, resolución obligatoria con su fecha, fecha de lectura del acta y
- * confirmación) al \App\Modules\Excelencia\Services\ExcelenciaService, que
+ * valida la forma del cuerpo y deja las reglas de cada módulo (calificaciones
+ * por área, lectura del acta, resolución de designación, informe del tribunal
+ * y confirmación) al \App\Modules\Excelencia\Services\ExcelenciaService, que
  * además devuelve el mensaje en el idioma de la tarjeta que lo disparó.
  */
 class GuardarModuloExcelenciaRequest extends FormRequest
