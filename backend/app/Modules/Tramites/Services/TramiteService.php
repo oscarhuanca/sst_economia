@@ -537,7 +537,11 @@ class TramiteService extends BasePaginadoService
 
         $objetivo = $rechaza
             ? self::PERFIL_RECHAZADO
-            : ($reprobada ? self::DEFENSA_REPROBADA : $modulosFlujo[$modulo]);
+            : ($reprobada
+                ? self::DEFENSA_REPROBADA
+                : ($modulo === 'aprobacion_tema' && $paso === 2
+                    ? 'tutor_asignado'
+                    : $modulosFlujo[$modulo]));
         $pctActual = self::PCT_POR_ESTADO[$tramite->estado_actual] ?? 0;
         $pctObjetivo = self::PCT_POR_ESTADO[$objetivo] ?? 0;
 
@@ -594,7 +598,7 @@ class TramiteService extends BasePaginadoService
             $soloHitos['hitos'] = $hitos;
         }
 
-        if ($avanza) {
+        if ($avanza && $pctObjetivo >= $pctActual) {
             $soloHitos['estado_actual'] = $objetivo;
         }
 
@@ -649,6 +653,15 @@ class TramiteService extends BasePaginadoService
                 $actor,
                 $adjuntos['resolucion_tutor'],
                 self::DOC_RESOLUCION_TUTOR,
+            );
+        }
+
+        if ($modulo === 'aprobacion_tema' && isset($adjuntos['nota_suficiencia_tutor'])) {
+            $datos['nota_suficiencia_tutor'] = $this->guardarMetadatosDocumento(
+                $tramite,
+                $actor,
+                $adjuntos['nota_suficiencia_tutor'],
+                'nota_suficiencia_tutor',
             );
         }
 
@@ -907,6 +920,15 @@ class TramiteService extends BasePaginadoService
                 }
                 if (empty($datos['tutor_id'])) {
                     $errores[] = 'Seleccione el tutor asignado.';
+                }
+                if (array_key_exists('paso', $datos) && $paso === 3) {
+                    $nota = $datos['nota_suficiencia_tutor_numero'] ?? null;
+                    if (! is_numeric($nota) || (float) $nota < 0 || (float) $nota > 100) {
+                        $errores[] = 'Ingrese la nota de suficiencia del tutor (0 a 100).';
+                    }
+                    if (! $val($datos['fecha_nota_suficiencia'] ?? null)) {
+                        $errores[] = 'Seleccione la fecha de la nota de suficiencia.';
+                    }
                 }
 
                 // Al registrar la Resolución de aprobación del tema en Kardex se

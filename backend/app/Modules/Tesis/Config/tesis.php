@@ -32,7 +32,7 @@ return [
 
     'tipos_documento' => [
         'nota_solicitud' => 'Nota de Solicitud',
-        'certificado_notas' => 'Certificado de Notas',
+        'certificado_notas' => 'Certificado de Conclusión de Estudios',
         'perfil_tesis' => 'Perfil de Tesis de Grado',
     ],
 

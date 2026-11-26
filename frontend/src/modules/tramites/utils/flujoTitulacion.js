@@ -423,10 +423,19 @@ function camposDeModulo(config, moduloId, datos, tramite) {
                 ? `Docente #${datos.tutor_id}`
                 : null,
         },
+        { etiqueta: 'N.º de Resolución HCC (tutor)', valor: datos.numero_resolucion_tutor },
+        { etiqueta: 'Fecha de la resolución (tutor)', valor: fechaLegible(datos.fecha_resolucion_tutor) },
         {
           etiqueta: 'Resolución de designación del tutor',
           valor: datos.resolucion_tutor?.nombre,
           ruta: datos.resolucion_tutor?.ruta || null,
+        },
+        { etiqueta: 'Nota de Suficiencia del tutor', valor: datos.nota_suficiencia_tutor_numero },
+        { etiqueta: 'Fecha de la nota de suficiencia', valor: fechaLegible(datos.fecha_nota_suficiencia) },
+        {
+          etiqueta: 'PDF de nota de suficiencia',
+          valor: datos.nota_suficiencia_tutor?.nombre,
+          ruta: datos.nota_suficiencia_tutor?.ruta || null,
         },
       ]);
 
@@ -597,6 +606,15 @@ export function validarModulo(moduloId, datos = {}, modalidad = null) {
         errores.push('Ingrese el tema de investigación (mínimo 5 caracteres).');
       }
       if (!val(datos.tutor_id)) errores.push('Seleccione el tutor asignado.');
+      if (Number(datos.paso) === 3) {
+        const nota = Number(datos.nota_suficiencia_tutor_numero);
+        if (!val(datos.nota_suficiencia_tutor_numero) || Number.isNaN(nota) || nota < 0 || nota > 100) {
+          errores.push('Ingrese la nota de suficiencia del tutor (0 a 100).');
+        }
+        if (!val(datos.fecha_nota_suficiencia)) {
+          errores.push('Seleccione la fecha de la nota de suficiencia.');
+        }
+      }
       if (datos.requiere_aprobacion_perfil) {
         if (!datos.perfil_aprobado) {
           errores.push('Debe confirmar la aprobación del perfil según la Resolución del HCC.');

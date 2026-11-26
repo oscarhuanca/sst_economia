@@ -280,13 +280,17 @@ async function guardar(moduloId, datos, archivos = {}) {
     toastStore.success(
       moduloId === 'defensa' && Number(datos.paso ?? 3) < 3
         ? 'Resolución y fecha de defensa registradas.'
-        : datos.accion === 'remitir'
-          ? 'Documentación verificada y remitida al HCC.'
-          : datos.accion === 'rechazar'
-            ? 'Perfil rechazado. Se notificó al estudiante para que presente otro perfil.'
-            : editandoId.value === moduloId
-              ? `Paso actualizado — ${modulo.badge}`
-              : `Paso completado — ${modulo.badge}`,
+        : moduloId === 'aprobacion_tema' && Number(datos.paso) === 2
+          ? 'Designación del tutor registrada.'
+          : moduloId === 'aprobacion_tema' && Number(datos.paso) === 3
+            ? 'Nota de suficiencia del tutor registrada.'
+            : datos.accion === 'remitir'
+              ? 'Documentación verificada y remitida al HCC.'
+              : datos.accion === 'rechazar'
+                ? 'Perfil rechazado. Se notificó al estudiante para que presente otro perfil.'
+                : editandoId.value === moduloId
+                  ? `Paso actualizado — ${modulo.badge}`
+                  : `Paso completado — ${modulo.badge}`,
     );
     editandoId.value = null;
     emit('guardado', actualizado);

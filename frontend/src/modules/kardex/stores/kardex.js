@@ -359,13 +359,14 @@ export const useKardexStore = defineStore('kardex', {
                         datosMock.resolucion_tutor = metadatos(archivos.resolucion_tutor);
                     }
 
+                    if (archivos.nota_suficiencia_tutor
+                        && (moduloId === 'aprobacion_tema' || moduloId === 'tribunal_revisor')) {
+                        datosMock.nota_suficiencia_tutor = metadatos(archivos.nota_suficiencia_tutor);
+                    }
+
                     if (moduloId === 'tribunal_revisor') {
                         if (archivos.resolucion_tribunal) {
                             datosMock.resolucion_tribunal = metadatos(archivos.resolucion_tribunal);
-                        }
-
-                        if (archivos.nota_suficiencia_tutor) {
-                            datosMock.nota_suficiencia_tutor = metadatos(archivos.nota_suficiencia_tutor);
                         }
 
                         datosMock.tribunal = (datos.tribunal || []).map((miembro) => {

@@ -140,6 +140,7 @@ class TramiteController extends Controller
         $validated = $request->validated();
 
         $adjuntos = array_filter([
+            'resolucion_tema' => $request->file('resolucion_tema'),
             'resolucion_tutor' => $request->file('resolucion_tutor'),
             'resolucion_tribunal' => $request->file('resolucion_tribunal'),
             'nota_suficiencia_tutor' => $request->file('nota_suficiencia_tutor'),

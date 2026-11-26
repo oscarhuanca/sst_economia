@@ -176,7 +176,7 @@ class TesisVerificacionTituloTest extends TestCase
         $this->assertSame(self::TITULO, $tramite->hitos['modulos']['perfil_tesis']['titulo']);
     }
 
-    public function test_la_aprobacion_del_tema_guarda_opcionalmente_la_resolucion_de_designacion_del_tutor(): void
+    public function test_la_aprobacion_del_tema_guarda_opcionalmente_las_resoluciones_pdf(): void
     {
         $this->crearModalidadTesis();
         $tramite = $this->crearTramiteConTitulo(self::TITULO, $this->crearEstudianteConCuenta());
@@ -193,20 +193,81 @@ class TesisVerificacionTituloTest extends TestCase
                 'datos' => [
                     'numero_resolucion' => 'HCC-0102/2026',
                     'fecha_resolucion' => now()->toDateString(),
+                    'numero_resolucion_tutor' => 'HCC-0103/2026',
+                    'fecha_resolucion_tutor' => now()->toDateString(),
                     'tema_investigacion' => 'Sistemas de riego eficientes en el altiplano',
                     'tutor_id' => $docente->id_docente,
                 ],
+                'resolucion_tema' => UploadedFile::fake()->create('resolucion_tema.pdf', 100, 'application/pdf'),
                 'resolucion_tutor' => UploadedFile::fake()->create('resolucion_tutor.pdf', 100, 'application/pdf'),
             ])
             ->assertCreated();
 
         $tramite->refresh();
-        $resolucion = $tramite->hitos['modulos']['aprobacion_tema']['resolucion_tutor'];
+        $modulo = $tramite->hitos['modulos']['aprobacion_tema'];
+        $resolucionTema = $modulo['resolucion_tema'];
+        $resolucionTutor = $modulo['resolucion_tutor'];
 
         $this->assertSame('tema_aprobado', $tramite->estado_actual);
         $this->assertSame($docente->id_docente, $tramite->id_tutor);
-        $this->assertSame('resolucion_tutor.pdf', $resolucion['nombre']);
-        $this->assertTrue(Storage::disk('public')->exists($resolucion['ruta']));
+        $this->assertSame('HCC-0103/2026', $modulo['numero_resolucion_tutor']);
+        $this->assertSame(now()->toDateString(), $modulo['fecha_resolucion_tutor']);
+        $this->assertSame('resolucion_tema.pdf', $resolucionTema['nombre']);
+        $this->assertTrue(Storage::disk('public')->exists($resolucionTema['ruta']));
+        $this->assertSame('resolucion_tutor.pdf', $resolucionTutor['nombre']);
+        $this->assertTrue(Storage::disk('public')->exists($resolucionTutor['ruta']));
+    }
+
+    public function test_kardex_guarda_la_designacion_y_la_nota_de_suficiencia_en_dos_pasos(): void
+    {
+        $this->crearModalidadTesis();
+        $tramite = $this->crearTramiteConTitulo(self::TITULO, $this->crearEstudianteConCuenta());
+        $tramite->update(['estado_actual' => 'perfil_aprobado']);
+
+        $docente = Docente::create([
+            'ci' => '7654321',
+            'nombre' => 'Roxana',
+            'apellidos' => 'Mendoza Cruz',
+        ]);
+
+        $base = [
+            'numero_resolucion' => 'HCC-0202/2026',
+            'fecha_resolucion' => now()->toDateString(),
+            'numero_resolucion_tutor' => 'HCC-0203/2026',
+            'fecha_resolucion_tutor' => now()->toDateString(),
+            'tema_investigacion' => 'Sistemas de riego eficientes en el altiplano',
+            'tutor_id' => $docente->id_docente,
+        ];
+        $url = "/api/tramites/{$tramite->id_tramite}/flujo/aprobacion_tema";
+        $kardex = $this->actingAs($this->crearUsuarioGestion());
+
+        $kardex->postJson($url, ['datos' => $base + ['paso' => 2]])->assertCreated();
+
+        $tramite->refresh();
+        $this->assertSame('tutor_asignado', $tramite->estado_actual);
+
+        $kardex->postJson($url, ['datos' => $base + ['paso' => 3]])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('datos');
+
+        $kardex->post($url, [
+            'datos' => $base + [
+                'paso' => 3,
+                'nota_suficiencia_tutor_numero' => 85,
+                'fecha_nota_suficiencia' => now()->toDateString(),
+            ],
+            'nota_suficiencia_tutor' => UploadedFile::fake()->create('nota_suficiencia.pdf', 100, 'application/pdf'),
+        ])->assertCreated();
+
+        $tramite->refresh();
+        $modulo = $tramite->hitos['modulos']['aprobacion_tema'];
+        $pdf = $modulo['nota_suficiencia_tutor'];
+
+        $this->assertSame('tema_aprobado', $tramite->estado_actual);
+        $this->assertEquals(85, $modulo['nota_suficiencia_tutor_numero']);
+        $this->assertSame(now()->toDateString(), $modulo['fecha_nota_suficiencia']);
+        $this->assertSame('nota_suficiencia.pdf', $pdf['nombre']);
+        $this->assertTrue(Storage::disk('public')->exists($pdf['ruta']));
     }
 
     public function test_kardex_remite_al_hcc_y_luego_se_aprueban_el_tema_y_el_tutor(): void

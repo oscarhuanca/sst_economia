@@ -332,8 +332,28 @@ const etapasProceso = computed(() => {
     etapa: 'Designación de docente tutor',
     subetapa: '2.2 Designación del tutor',
     estado: aprobacionTema.value.tutor_id ? 'COMPLETADO' : 'PENDIENTE',
-    fecha: fechaLegible(aprobacionTema.value.fecha_resolucion) || '—',
-    detalle: nombreTutor.value,
+    fecha: fechaLegible(
+      aprobacionTema.value.fecha_resolucion_tutor || aprobacionTema.value.fecha_resolucion,
+    ) || '—',
+    detalle: [
+      aprobacionTema.value.numero_resolucion_tutor
+        ? `Resolución N.º ${aprobacionTema.value.numero_resolucion_tutor}`
+        : null,
+      nombreTutor.value,
+    ].filter(Boolean).join(' · ') || '—',
+  });
+
+  const notaSuficiencia = aprobacionTema.value.nota_suficiencia_tutor_numero;
+  const notaSuficienciaPdf = aprobacionTema.value.nota_suficiencia_tutor?.nombre;
+  etapas.push({
+    etapa: 'Nota de suficiencia del tutor',
+    subetapa: '2.3 Nota de suficiencia del tutor',
+    estado: notaSuficiencia != null ? 'COMPLETADO' : 'PENDIENTE',
+    fecha: fechaLegible(aprobacionTema.value.fecha_nota_suficiencia) || '—',
+    detalle: [
+      notaSuficiencia != null ? `Nota ${notaSuficiencia}` : null,
+      notaSuficienciaPdf ? `PDF: ${notaSuficienciaPdf}` : null,
+    ].filter(Boolean).join(' · ') || '—',
   });
 
   const tribunal = tribunalDatos.value.tribunal || [];
